@@ -1,0 +1,914 @@
+bash
+
+description="Rewriting the complete fixed application"
+cat > /home/claude/pesquisa-clima.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pesquisa de Clima Organizacional</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+:root{
+  --blue-deep:#1B3A6B;--blue-mid:#2557A7;--blue-light:#EBF0FA;
+  --green:#2E7D5E;--green-light:#E8F5EF;
+  --amber:#E8A020;--amber-light:#FEF3DC;
+  --red:#C0392B;--red-light:#FDECEA;
+  --gray-100:#F5F7FA;--gray-200:#E8ECF2;--gray-400:#9BA8BB;
+  --gray-600:#5A6478;--gray-800:#2C3447;
+  --shadow-sm:0 1px 4px rgba(27,58,107,.08);
+  --shadow-md:0 4px 16px rgba(27,58,107,.12);
+  --shadow-lg:0 8px 32px rgba(27,58,107,.18);
+  --radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--gray-100);color:var(--gray-800);min-height:100vh}
+
+.app-header{background:var(--blue-deep);color:#fff;padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-md)}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:-.3px}
+.logo-icon{width:30px;height:30px;background:var(--blue-mid);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.nav-tabs{display:flex;gap:3px}
+.nav-tab{padding:6px 13px;border-radius:6px;border:none;background:transparent;color:rgba(255,255,255,.6);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s}
+.nav-tab:hover,.nav-tab.active{background:rgba(255,255,255,.18);color:#fff}
+
+.view{display:none}.view.active{display:block}
+
+/* SURVEY */
+.survey-wrap{max-width:680px;margin:0 auto;padding:24px 14px 60px}
+.anon-banner{background:var(--green-light);border:1.5px solid #A3D4BF;border-radius:var(--radius);padding:14px 16px;display:flex;gap:10px;align-items:flex-start;margin-bottom:22px}
+.anon-banner .shield{font-size:20px;flex-shrink:0;margin-top:1px}
+.anon-banner h3{font-size:12.5px;font-weight:700;color:var(--green);margin-bottom:3px}
+.anon-banner p{font-size:12px;color:#3a6e57;line-height:1.5}
+.survey-header{margin-bottom:24px;text-align:center}
+.survey-header h1{font-size:22px;font-weight:800;color:var(--blue-deep);letter-spacing:-.5px}
+.survey-header p{font-size:13px;color:var(--gray-600);margin-top:6px;line-height:1.55}
+.progress-wrap{margin-bottom:22px}
+.progress-label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--gray-400);margin-bottom:6px;font-weight:500}
+.progress-bar{height:5px;background:var(--gray-200);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--blue-mid),#4A90D9);border-radius:99px;transition:width .4s ease}
+.survey-section{background:#fff;border-radius:var(--radius);padding:20px;margin-bottom:14px;box-shadow:var(--shadow-sm);border:1px solid var(--gray-200)}
+.section-title{display:flex;align-items:center;gap:9px;margin-bottom:16px}
+.section-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--blue-light)}
+.section-title h2{font-size:14.5px;font-weight:700;color:var(--blue-deep)}
+.question-item{margin-bottom:16px}.question-item:last-child{margin-bottom:0}
+.question-text{font-size:12.5px;color:var(--gray-800);margin-bottom:8px;font-weight:500;line-height:1.5}
+.scale-row{display:flex;gap:4px}
+.scale-btn{flex:1;height:42px;border-radius:var(--radius-sm);border:1.5px solid var(--gray-200);background:var(--gray-100);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;color:var(--gray-600);transition:all .15s}
+.scale-btn:hover{border-color:var(--blue-mid);color:var(--blue-mid);background:var(--blue-light)}
+.scale-btn.s1{background:#FDECEA;border-color:var(--red);color:var(--red)}
+.scale-btn.s2{background:#FEF3DC;border-color:var(--amber);color:#c47d0a}
+.scale-btn.s3{background:#F0EEF8;border-color:#7B6DC8;color:#5a50a0}
+.scale-btn.s4{background:#E8F5EF;border-color:#4aad82;color:#2a7d58}
+.scale-btn.s5{background:#E8F0FB;border-color:var(--blue-mid);color:var(--blue-mid)}
+.scale-label{font-size:8.5px;font-weight:400;line-height:1.2;text-align:center;margin-top:2px;display:none}
+@media(min-width:440px){.scale-label{display:block}}
+.open-q{margin-bottom:16px}.open-q:last-child{margin-bottom:0}
+.open-q label{display:block;font-size:12.5px;font-weight:500;color:var(--gray-800);margin-bottom:6px;line-height:1.5}
+.open-q textarea{width:100%;min-height:80px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);padding:10px;font-family:'Inter',sans-serif;font-size:12.5px;color:var(--gray-800);resize:vertical;transition:border-color .2s;background:var(--gray-100)}
+.open-q textarea:focus{outline:none;border-color:var(--blue-mid);background:#fff}
+.open-q textarea::placeholder{color:var(--gray-400)}
+.submit-area{text-align:center;margin-top:26px}
+.btn-primary{background:var(--blue-deep);color:#fff;border:none;padding:12px 36px;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 12px rgba(27,58,107,.28)}
+.btn-primary:hover{background:var(--blue-mid);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+.special-screen{display:none;text-align:center;padding:52px 22px;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+.special-screen.show{display:block}
+
+/* SETUP BANNER */
+.setup-banner{background:#fff3cd;border:1.5px solid #ffc107;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:12.5px;line-height:1.6;display:none}
+.setup-banner.show{display:block}
+.setup-banner strong{color:#856404}
+
+/* LOGIN */
+.login-overlay{display:none;position:fixed;inset:0;background:rgba(27,58,107,.6);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.login-overlay.show{display:flex}
+.login-box{background:#fff;border-radius:16px;padding:34px 30px;max-width:360px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.login-box h2{font-size:19px;font-weight:800;color:var(--blue-deep);margin-bottom:5px}
+.login-box p{font-size:12.5px;color:var(--gray-600);margin-bottom:22px}
+.login-box input{width:100%;padding:11px 13px;border:1.5px solid var(--gray-200);border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:13.5px;margin-bottom:10px;outline:none;transition:border-color .2s}
+.login-box input:focus{border-color:var(--blue-mid)}
+.login-error{color:var(--red);font-size:12px;margin-bottom:8px;display:none}
+.login-error.show{display:block}
+
+/* DASHBOARD */
+.dashboard-wrap{padding:22px 14px 60px;max-width:1200px;margin:0 auto}
+.dash-topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px}
+.dash-topbar h1{font-size:20px;font-weight:800;color:var(--blue-deep)}
+.responses-count{background:var(--blue-light);color:var(--blue-mid);font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:99px;display:inline-block;margin-top:4px}
+.dash-actions{display:flex;gap:7px;flex-wrap:wrap}
+.btn-outline{background:#fff;border:1.5px solid var(--gray-200);color:var(--gray-600);padding:7px 13px;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px}
+.btn-outline:hover{border-color:var(--blue-mid);color:var(--blue-mid);background:var(--blue-light)}
+.btn-ai{background:linear-gradient(135deg,#2557A7,#4A90D9);color:#fff;border:none;padding:7px 15px;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(37,87,167,.28)}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,87,167,.38)}
+.btn-danger{background:var(--red-light);border:1.5px solid #e8b4b0;color:var(--red);padding:7px 13px;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-danger:hover{background:var(--red);color:#fff}
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:18px}
+.metric-card{background:#fff;border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-sm);border:1px solid var(--gray-200);position:relative;overflow:hidden}
+.metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:var(--radius) var(--radius) 0 0}
+.metric-card.excellent::before{background:var(--green)}.metric-card.good::before{background:#3AA76D}
+.metric-card.attention::before{background:var(--amber)}.metric-card.critical::before{background:var(--red)}
+.metric-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:6px}
+.metric-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1}
+.metric-value.excellent{color:var(--green)}.metric-value.good{color:#3AA76D}
+.metric-value.attention{color:var(--amber)}.metric-value.critical{color:var(--red)}
+.metric-badge{display:inline-block;margin-top:5px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.3px}
+.metric-badge.excellent{background:var(--green-light);color:var(--green)}.metric-badge.good{background:#E8F5EF;color:#3AA76D}
+.metric-badge.attention{background:var(--amber-light);color:#c47d0a}.metric-badge.critical{background:var(--red-light);color:var(--red)}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:740px){.dash-grid{grid-template-columns:1fr}}
+.dash-card{background:#fff;border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-sm);border:1px solid var(--gray-200)}
+.dash-card.full{grid-column:1/-1}
+.dash-card h3{font-size:13px;font-weight:700;color:var(--blue-deep);margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.dash-card h3 .badge{background:var(--blue-light);color:var(--blue-mid);font-size:9.5px;padding:2px 7px;border-radius:99px;font-weight:600}
+.ranking-list{display:flex;flex-direction:column;gap:6px}
+.ranking-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--gray-100);border:1px solid var(--gray-200)}
+.ranking-pos{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.ranking-name{flex:1;font-size:12px;font-weight:500}
+.ranking-score{font-size:14px;font-weight:800}
+.ranking-bar-wrap{flex:0 0 65px;height:5px;background:var(--gray-200);border-radius:99px;overflow:hidden}
+.ranking-bar{height:100%;border-radius:99px}
+.heatmap-grid{display:grid;gap:3px}
+.heatmap-row{display:grid;grid-template-columns:170px repeat(5,1fr);gap:3px;align-items:center}
+.heatmap-label{font-size:10.5px;color:var(--gray-600);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:5px}
+.heatmap-cell{height:25px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#fff;cursor:default;transition:transform .15s}
+.heatmap-cell:hover{transform:scale(1.07)}
+.heatmap-header{display:grid;grid-template-columns:170px repeat(5,1fr);gap:3px;margin-bottom:3px}
+.heatmap-header span{text-align:center;font-size:9px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px}
+.open-answers{display:flex;flex-direction:column;gap:6px}
+.open-answer-item{padding:9px 12px;background:var(--gray-100);border-radius:var(--radius-sm);border-left:3px solid var(--blue-mid);font-size:12.5px;line-height:1.6;color:var(--gray-600)}
+.empty-state{text-align:center;padding:52px 22px;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-sm);border:1px solid var(--gray-200)}
+.empty-state .icon{font-size:42px;margin-bottom:13px}
+.empty-state h3{font-size:16px;font-weight:700;color:var(--blue-deep);margin-bottom:6px}
+.empty-state p{color:var(--gray-600);font-size:13px;line-height:1.6}
+
+/* AI MODAL */
+.ai-report-overlay{display:none;position:fixed;inset:0;background:rgba(27,58,107,.5);z-index:200;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
+.ai-report-overlay.show{display:flex}
+.ai-report-modal{background:#fff;border-radius:16px;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.ai-modal-header{background:linear-gradient(135deg,var(--blue-deep),var(--blue-mid));color:#fff;padding:20px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:flex-start}
+.ai-modal-header h2{font-size:16px;font-weight:800;margin-bottom:3px}
+.ai-modal-header p{font-size:11px;opacity:.75}
+.btn-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai-modal-body{padding:20px}
+.ai-section{margin-bottom:16px}
+.ai-section-title{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--blue-deep);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid var(--gray-200)}
+.ai-loading{display:flex;flex-direction:column;align-items:center;padding:32px;text-align:center;gap:10px}
+.ai-spinner{width:36px;height:36px;border:3px solid var(--blue-light);border-top-color:var(--blue-mid);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-content p{font-size:12.5px;line-height:1.7;color:var(--gray-800);margin-bottom:6px}
+.ai-content ul{padding-left:17px}
+.ai-content li{font-size:12.5px;line-height:1.7;color:var(--gray-800);margin-bottom:3px}
+.action-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.action-table th{background:var(--blue-deep);color:#fff;padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.action-table td{padding:7px 10px;border-bottom:1px solid var(--gray-200)}
+.action-table tr:nth-child(even) td{background:var(--gray-100)}
+.prio-badge{padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.prio-alta{background:var(--red-light);color:var(--red)}.prio-media{background:var(--amber-light);color:#c47d0a}.prio-baixa{background:var(--green-light);color:var(--green)}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;box-shadow:var(--shadow-lg);z-index:999;transform:translateY(70px);opacity:0;transition:all .3s;pointer-events:none;max-width:320px;color:#fff;background:var(--gray-800)}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.warn{background:var(--amber)}
+
+@media(max-width:480px){
+  .heatmap-row,.heatmap-header{grid-template-columns:100px repeat(5,1fr)}
+  .heatmap-label{font-size:9.5px}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo"><div class="logo-icon">🌡️</div><span>Clima Organizacional</span></div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" id="tab-survey" onclick="navSurvey(event)">📋 Responder</button>
+    <button class="nav-tab" id="tab-dash" onclick="navDash(event)">📊 Dashboard</button>
+  </nav>
+</header>
+
+<!-- LOGIN MODAL -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div style="font-size:38px;margin-bottom:10px">🔐</div>
+    <h2>Acesso Restrito</h2>
+    <p>Área exclusiva para gestores. Insira a senha para continuar.</p>
+    <input type="password" id="login-input" placeholder="Digite a senha" onkeydown="if(event.key==='Enter')checkLogin()">
+    <div class="login-error" id="login-error">Senha incorreta. Tente novamente.</div>
+    <button class="btn-primary" style="width:100%;margin-top:4px" onclick="checkLogin()">Entrar</button>
+  </div>
+</div>
+
+<!-- ══ SURVEY VIEW ══ -->
+<div id="view-survey" class="view active">
+  <div class="survey-wrap">
+
+    <!-- Já respondeu -->
+    <div class="special-screen" id="already-screen">
+      <div style="font-size:52px;margin-bottom:14px">✅</div>
+      <h2 style="font-size:19px;font-weight:800;color:var(--blue-deep);margin-bottom:9px">Você já respondeu esta pesquisa</h2>
+      <p style="color:var(--gray-600);line-height:1.6;max-width:360px;margin:0 auto">Sua resposta já foi registrada neste dispositivo. A pesquisa permite apenas <strong>1 resposta por aparelho</strong> para garantir a integridade dos dados. Obrigado!</p>
+    </div>
+
+    <!-- Sucesso -->
+    <div class="special-screen" id="success-screen">
+      <div style="font-size:52px;margin-bottom:14px">🎉</div>
+      <h2 style="font-size:19px;font-weight:800;color:var(--green);margin-bottom:9px">Obrigado pela participação!</h2>
+      <p style="color:var(--gray-600);line-height:1.6;max-width:360px;margin:0 auto">Suas respostas foram registradas com sucesso de forma <strong>completamente anônima</strong>. Elas serão analisadas para melhorar o ambiente de trabalho.</p>
+    </div>
+
+    <!-- Formulário -->
+    <div id="survey-form">
+      <div class="anon-banner">
+        <div class="shield">🛡️</div>
+        <div>
+          <h3>100% Anônimo — Seus dados estão protegidos</h3>
+          <p>Esta pesquisa <strong>não coleta nome, e-mail, IP ou qualquer dado identificador</strong>. Suas respostas são confidenciais e tratadas de forma agregada.</p>
+        </div>
+      </div>
+      <div class="survey-header">
+        <h1>Pesquisa de Clima Operacional</h1>
+        <p>Sua opinião é fundamental. A pesquisa leva cerca de 5 minutos.</p>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>Progresso</span><span id="progress-text">0 de 18</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+
+      <!-- LIDERANÇA -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">👔</div><h2>Liderança</h2></div>
+        <div class="question-item"><div class="question-text">1. Meu gestor fornece orientações claras.</div><div class="scale-row" id="row-q1"><button class="scale-btn" onclick="sel(this,1,'q1')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q1')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q1')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q1')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q1')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">2. Recebo feedback sobre meu desempenho.</div><div class="scale-row" id="row-q2"><button class="scale-btn" onclick="sel(this,1,'q2')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q2')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q2')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q2')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q2')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">3. Minha liderança trata os colaboradores com respeito.</div><div class="scale-row" id="row-q3"><button class="scale-btn" onclick="sel(this,1,'q3')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q3')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q3')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q3')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q3')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">4. Confio nas decisões da liderança.</div><div class="scale-row" id="row-q4"><button class="scale-btn" onclick="sel(this,1,'q4')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q4')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q4')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q4')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q4')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- COMUNICAÇÃO -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">💬</div><h2>Comunicação</h2></div>
+        <div class="question-item"><div class="question-text">5. As informações chegam de forma clara.</div><div class="scale-row" id="row-q5"><button class="scale-btn" onclick="sel(this,1,'q5')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q5')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q5')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q5')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q5')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">6. Sei o que é esperado de mim.</div><div class="scale-row" id="row-q6"><button class="scale-btn" onclick="sel(this,1,'q6')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q6')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q6')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q6')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q6')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">7. Existe boa comunicação entre os setores.</div><div class="scale-row" id="row-q7"><button class="scale-btn" onclick="sel(this,1,'q7')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q7')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q7')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q7')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q7')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- OPERACIONAL -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">⚙️</div><h2>Condições Operacionais</h2></div>
+        <div class="question-item"><div class="question-text">8. Possuo os recursos necessários para realizar meu trabalho.</div><div class="scale-row" id="row-q8"><button class="scale-btn" onclick="sel(this,1,'q8')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q8')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q8')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q8')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q8')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">9. Os equipamentos estão em boas condições.</div><div class="scale-row" id="row-q9"><button class="scale-btn" onclick="sel(this,1,'q9')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q9')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q9')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q9')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q9')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">10. Os processos da empresa facilitam meu trabalho.</div><div class="scale-row" id="row-q10"><button class="scale-btn" onclick="sel(this,1,'q10')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q10')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q10')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q10')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q10')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- SEGURANÇA -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">🦺</div><h2>Segurança</h2></div>
+        <div class="question-item"><div class="question-text">11. Sinto-me seguro durante minhas atividades.</div><div class="scale-row" id="row-q11"><button class="scale-btn" onclick="sel(this,1,'q11')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q11')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q11')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q11')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q11')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">12. Recebo orientações adequadas sobre segurança.</div><div class="scale-row" id="row-q12"><button class="scale-btn" onclick="sel(this,1,'q12')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q12')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q12')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q12')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q12')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">13. A empresa demonstra preocupação com saúde e segurança.</div><div class="scale-row" id="row-q13"><button class="scale-btn" onclick="sel(this,1,'q13')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q13')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q13')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q13')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q13')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- CLIMA -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">🤝</div><h2>Clima Organizacional</h2></div>
+        <div class="question-item"><div class="question-text">14. Existe respeito entre os colaboradores.</div><div class="scale-row" id="row-q14"><button class="scale-btn" onclick="sel(this,1,'q14')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q14')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q14')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q14')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q14')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">15. O ambiente de trabalho é agradável.</div><div class="scale-row" id="row-q15"><button class="scale-btn" onclick="sel(this,1,'q15')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q15')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q15')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q15')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q15')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">16. Eu recomendaria a empresa para trabalhar.</div><div class="scale-row" id="row-q16"><button class="scale-btn" onclick="sel(this,1,'q16')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q16')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q16')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q16')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q16')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- DESENVOLVIMENTO -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">🎯</div><h2>Desenvolvimento</h2></div>
+        <div class="question-item"><div class="question-text">17. Tenho oportunidades de aprendizado.</div><div class="scale-row" id="row-q17"><button class="scale-btn" onclick="sel(this,1,'q17')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q17')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q17')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q17')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q17')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+        <div class="question-item"><div class="question-text">18. Tenho possibilidade de crescimento profissional.</div><div class="scale-row" id="row-q18"><button class="scale-btn" onclick="sel(this,1,'q18')">1<span class="scale-label">Muito<br>Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,2,'q18')">2<span class="scale-label">Insatisfeito</span></button><button class="scale-btn" onclick="sel(this,3,'q18')">3<span class="scale-label">Neutro</span></button><button class="scale-btn" onclick="sel(this,4,'q18')">4<span class="scale-label">Satisfeito</span></button><button class="scale-btn" onclick="sel(this,5,'q18')">5<span class="scale-label">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- ABERTAS -->
+      <div class="survey-section">
+        <div class="section-title"><div class="section-icon">✏️</div><h2>Perguntas Abertas <span style="font-size:11px;font-weight:400;color:var(--gray-400)">(opcional)</span></h2></div>
+        <div class="open-q"><label>O que a empresa faz bem?</label><textarea id="open1" placeholder="Compartilhe o que você aprecia..."></textarea></div>
+        <div class="open-q"><label>O que precisa melhorar?</label><textarea id="open2" placeholder="Descreva o que poderia melhorar..."></textarea></div>
+        <div class="open-q"><label>Sugestões para a diretoria.</label><textarea id="open3" placeholder="Suas sugestões são bem-vindas..."></textarea></div>
+      </div>
+
+      <div class="submit-area">
+        <p style="font-size:11px;color:var(--gray-400);margin-bottom:12px">Ao enviar, você confirma que suas respostas são anônimas.</p>
+        <button class="btn-primary" id="submit-btn" onclick="submitSurvey()">✅ Enviar Pesquisa</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD VIEW ══ -->
+<div id="view-dashboard" class="view">
+  <div class="dashboard-wrap">
+
+    <!-- Banner de configuração EmailJS -->
+    <div class="setup-banner" id="setup-banner">
+      ⚠️ <strong>E-mails não configurados.</strong> Para receber notificações, edite o arquivo HTML e preencha <code>EMAILJS_PUBLIC_KEY</code>, <code>EMAILJS_SERVICE_ID</code> e <code>EMAILJS_TEMPLATE_ID</code> com suas credenciais do <a href="https://emailjs.com" target="_blank">emailjs.com</a>. Enquanto isso, todas as respostas continuam sendo salvas normalmente aqui no dashboard.
+    </div>
+
+    <div class="dash-topbar">
+      <div>
+        <h1>📊 Dashboard de Clima</h1>
+        <div class="responses-count" id="responses-count">0 respostas</div>
+      </div>
+      <div class="dash-actions">
+        <button class="btn-outline" onclick="exportExcel()">📥 Excel</button>
+        <button class="btn-outline" onclick="exportPDF()">📄 PDF</button>
+        <button class="btn-ai" onclick="openAIReport()">✨ Relatório IA</button>
+        <button class="btn-danger" onclick="confirmReset()">🗑️ Zerar Pesquisa</button>
+      </div>
+    </div>
+
+    <div id="no-responses-state" style="display:none">
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <h3>Nenhuma resposta ainda</h3>
+        <p>Quando os colaboradores responderem a pesquisa, os resultados aparecerão aqui com gráficos e análises completas.</p>
+      </div>
+    </div>
+
+    <div id="dash-content">
+      <div class="metrics-grid" id="metrics-grid"></div>
+      <div class="dash-grid">
+        <div class="dash-card"><h3>📈 Índice por Categoria</h3><canvas id="barChart" height="230"></canvas></div>
+        <div class="dash-card"><h3>🏆 Ranking</h3><div class="ranking-list" id="ranking-list"></div></div>
+        <div class="dash-card"><h3>📅 Evolução Histórica <span class="badge">Por dia</span></h3><canvas id="lineChart" height="210"></canvas></div>
+        <div class="dash-card"><h3>🎯 Distribuição das Avaliações</h3><canvas id="doughnutChart" height="210"></canvas></div>
+        <div class="dash-card full">
+          <h3>🌡️ Mapa de Calor — Todas as Perguntas</h3>
+          <div style="overflow-x:auto">
+            <div class="heatmap-header"><span></span><span>1 — Muito Insatisfeito</span><span>2 — Insatisfeito</span><span>3 — Neutro</span><span>4 — Satisfeito</span><span>5 — Muito Satisfeito</span></div>
+            <div class="heatmap-grid" id="heatmap-grid"></div>
+          </div>
+        </div>
+        <div class="dash-card full">
+          <h3>💬 Respostas Abertas <span class="badge" id="open-badge">0</span></h3>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green);margin-bottom:7px">✅ O que a empresa faz bem</div>
+            <div class="open-answers" id="open1-list"></div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--amber);margin-bottom:7px">⚠️ O que precisa melhorar</div>
+            <div class="open-answers" id="open2-list"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--blue-mid);margin-bottom:7px">💡 Sugestões para a diretoria</div>
+            <div class="open-answers" id="open3-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI MODAL -->
+<div class="ai-report-overlay" id="ai-overlay">
+  <div class="ai-report-modal">
+    <div class="ai-modal-header">
+      <div><h2>✨ Relatório Executivo — Análise de IA</h2><p>Gerado automaticamente com base nas respostas coletadas</p></div>
+      <button class="btn-close" onclick="closeAI()">✕</button>
+    </div>
+    <div class="ai-modal-body">
+      <div class="ai-loading" id="ai-loading"><div class="ai-spinner"></div><p style="font-size:13px;color:var(--gray-600)">Analisando dados e gerando relatório executivo...</p></div>
+      <div id="ai-content" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+// ⚙️  CONFIGURAÇÕES — edite apenas este bloco
+// ══════════════════════════════════════════════════
+const CFG = {
+  PASSWORD:   'Sinalvida@2025',          // senha do dashboard
+
+  // Após criar conta em emailjs.com, cole as credenciais abaixo:
+  EJ_PUBLIC:  'COLE_SUA_PUBLIC_KEY',     // Account → Public Key
+  EJ_SERVICE: 'COLE_SEU_SERVICE_ID',     // Email Services → Service ID
+  EJ_TEMPLATE:'COLE_SEU_TEMPLATE_ID',    // Email Templates → Template ID
+};
+// ══════════════════════════════════════════════════
+
+const STORE_KEY = 'clima_v4_responses';
+const FP_KEY    = 'clima_v4_fp';
+const SESS_KEY  = 'clima_v4_sess';
+
+const QUESTIONS = [
+  {id:'q1', cat:'lideranca',     txt:'Orientações claras do gestor'},
+  {id:'q2', cat:'lideranca',     txt:'Feedback de desempenho'},
+  {id:'q3', cat:'lideranca',     txt:'Respeito da liderança'},
+  {id:'q4', cat:'lideranca',     txt:'Confiança nas decisões'},
+  {id:'q5', cat:'comunicacao',   txt:'Clareza das informações'},
+  {id:'q6', cat:'comunicacao',   txt:'Clareza das expectativas'},
+  {id:'q7', cat:'comunicacao',   txt:'Comunicação entre setores'},
+  {id:'q8', cat:'operacional',   txt:'Recursos disponíveis'},
+  {id:'q9', cat:'operacional',   txt:'Condição dos equipamentos'},
+  {id:'q10',cat:'operacional',   txt:'Processos facilitadores'},
+  {id:'q11',cat:'seguranca',     txt:'Segurança nas atividades'},
+  {id:'q12',cat:'seguranca',     txt:'Orientações de segurança'},
+  {id:'q13',cat:'seguranca',     txt:'Preocupação c/ saúde e seg.'},
+  {id:'q14',cat:'clima',         txt:'Respeito entre colaboradores'},
+  {id:'q15',cat:'clima',         txt:'Ambiente de trabalho'},
+  {id:'q16',cat:'clima',         txt:'Recomendaria a empresa'},
+  {id:'q17',cat:'desenvolvimento',txt:'Oportunidades de aprendizado'},
+  {id:'q18',cat:'desenvolvimento',txt:'Crescimento profissional'},
+];
+const CATS = [
+  {key:'lideranca',      label:'Liderança',      qs:['q1','q2','q3','q4']},
+  {key:'comunicacao',    label:'Comunicação',     qs:['q5','q6','q7']},
+  {key:'operacional',    label:'Operacional',     qs:['q8','q9','q10']},
+  {key:'seguranca',      label:'Segurança',       qs:['q11','q12','q13']},
+  {key:'clima',          label:'Clima Org.',      qs:['q14','q15','q16']},
+  {key:'desenvolvimento',label:'Desenvolvimento', qs:['q17','q18']},
+];
+
+let answers = {};
+let charts  = {};
+let ejReady = false;
+
+// ── EmailJS init ──────────────────────────────────
+function ejInit() {
+  if (CFG.EJ_PUBLIC === 'COLE_SUA_PUBLIC_KEY') return;
+  try { emailjs.init(CFG.EJ_PUBLIC); ejReady = true; } catch(e){}
+}
+ejInit();
+
+// ── Storage helpers ───────────────────────────────
+function getResponses() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; }
+}
+function saveResponse(rec) {
+  const all = getResponses();
+  all.push(rec);
+  localStorage.setItem(STORE_KEY, JSON.stringify(all));
+  return all.length;
+}
+function clearResponses() {
+  localStorage.removeItem(STORE_KEY);
+  localStorage.removeItem(FP_KEY);
+}
+
+// ── Device fingerprint (1 voto/aparelho) ─────────
+function fingerprint() {
+  const n = navigator, s = screen;
+  const raw = [n.userAgent,n.language,n.hardwareConcurrency||'',
+    s.width,s.height,s.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    n.cookieEnabled].join('|');
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return 'fp' + h.toString(36);
+}
+function alreadyVoted()  { return localStorage.getItem(FP_KEY) === fingerprint(); }
+function markVoted()     { localStorage.setItem(FP_KEY, fingerprint()); }
+
+// ── Session auth ──────────────────────────────────
+function isAuth()  { return sessionStorage.getItem(SESS_KEY) === '1'; }
+function setAuth() { sessionStorage.setItem(SESS_KEY, '1'); }
+
+// ── Init DOM ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (alreadyVoted()) {
+    document.getElementById('survey-form').style.display = 'none';
+    document.getElementById('already-screen').classList.add('show');
+  }
+  // Mostrar banner de setup no dashboard se EmailJS não configurado
+  if (CFG.EJ_PUBLIC === 'COLE_SUA_PUBLIC_KEY') {
+    document.getElementById('setup-banner').classList.add('show');
+  }
+});
+
+// ── Navigation ────────────────────────────────────
+function navSurvey(e) {
+  switchView('survey');
+  document.getElementById('tab-survey').classList.add('active');
+  document.getElementById('tab-dash').classList.remove('active');
+}
+function navDash(e) {
+  if (isAuth()) { openDashboard(); return; }
+  document.getElementById('login-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('login-input').focus(), 120);
+}
+function openDashboard() {
+  switchView('dashboard');
+  document.getElementById('tab-dash').classList.add('active');
+  document.getElementById('tab-survey').classList.remove('active');
+  renderDashboard();
+}
+function switchView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+}
+
+// ── Login ─────────────────────────────────────────
+function checkLogin() {
+  const inp = document.getElementById('login-input');
+  if (inp.value === CFG.PASSWORD) {
+    setAuth();
+    document.getElementById('login-overlay').classList.remove('show');
+    document.getElementById('login-error').classList.remove('show');
+    inp.value = '';
+    openDashboard();
+  } else {
+    document.getElementById('login-error').classList.add('show');
+    inp.value = '';
+    inp.focus();
+  }
+}
+
+// ── Survey interactions ───────────────────────────
+function sel(btn, val, qid) {
+  document.querySelectorAll(`#row-${qid} .scale-btn`).forEach(b => b.className = 'scale-btn');
+  btn.classList.add('s' + val);
+  answers[qid] = val;
+  updateProgress();
+}
+function updateProgress() {
+  const done = Object.keys(answers).length;
+  const pct  = Math.round((done / 18) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = `${done} de 18`;
+}
+
+async function submitSurvey() {
+  const done = Object.keys(answers).length;
+  if (done < 18) {
+    toast(`Responda todas as 18 perguntas (${done}/18 feitas)`, 'err');
+    // Scroll to first unanswered
+    const ids = ['q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18'];
+    const first = ids.find(id => !answers[id]);
+    if (first) document.getElementById('row-'+first).scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Enviando...';
+
+  const rec = {
+    ts:    new Date().toISOString(),
+    ans:   {...answers},
+    open1: document.getElementById('open1').value.trim(),
+    open2: document.getElementById('open2').value.trim(),
+    open3: document.getElementById('open3').value.trim(),
+  };
+
+  const total = saveResponse(rec);
+  markVoted();
+
+  // Tenta enviar e-mail (sem bloquear a UI)
+  sendEmail(rec, total);
+
+  // Mostra sucesso imediatamente
+  document.getElementById('survey-form').style.display = 'none';
+  document.getElementById('success-screen').classList.add('show');
+  answers = {};
+}
+
+// ── EmailJS ───────────────────────────────────────
+async function sendEmail(rec, total) {
+  if (!ejReady) return;
+
+  const {catAvg, overall} = calcStats([rec]);
+  const linhasCats = CATS.map(c =>
+    `  ${c.label}: ${catAvg[c.key].toFixed(2)} (${classify(catAvg[c.key]).label})`
+  ).join('\n');
+
+  const params = {
+    to_email:           'gabriel.souza@sinalvida.com.br',
+    data_hora:          new Date(rec.ts).toLocaleString('pt-BR'),
+    total_respostas:    total,
+    indice_geral:       overall.toFixed(2),
+    classificacao:      classify(overall).label,
+    indices_categorias: linhasCats,
+    faz_bem:            rec.open1 || '(não respondido)',
+    melhorar:           rec.open2 || '(não respondido)',
+    sugestoes:          rec.open3 || '(não respondido)',
+  };
+
+  try {
+    await emailjs.send(CFG.EJ_SERVICE, CFG.EJ_TEMPLATE, params);
+    console.log('✅ E-mail enviado com sucesso');
+  } catch (err) {
+    console.warn('⚠️ EmailJS error:', err);
+  }
+}
+
+// ── Stats / classify ──────────────────────────────
+function classify(s) {
+  if (s >= 4.5) return {cls:'excellent', label:'Excelente'};
+  if (s >= 4.0) return {cls:'good',      label:'Bom'};
+  if (s >= 3.0) return {cls:'attention', label:'Atenção'};
+  return               {cls:'critical',  label:'Crítico'};
+}
+function calcStats(responses) {
+  const cs = {}, qs = {}, hd = {};
+  CATS.forEach(c => { cs[c.key]={sum:0,cnt:0}; });
+  QUESTIONS.forEach(q => { qs[q.id]={sum:0,cnt:0}; hd[q.id]={1:0,2:0,3:0,4:0,5:0}; });
+  let ts=0, tc=0;
+  responses.forEach(r => {
+    QUESTIONS.forEach(q => {
+      const v = r.ans[q.id] || r.answers?.[q.id]; // suporte ao formato antigo
+      if (v) {
+        qs[q.id].sum+=v; qs[q.id].cnt++;
+        cs[q.cat].sum+=v; cs[q.cat].cnt++;
+        hd[q.id][v]++;
+        ts+=v; tc++;
+      }
+    });
+  });
+  const catAvg = {};
+  CATS.forEach(c => { catAvg[c.key] = cs[c.key].cnt ? cs[c.key].sum/cs[c.key].cnt : 0; });
+  return {catAvg, qs, hd, overall: tc ? ts/tc : 0};
+}
+function heatColor(pct) {
+  if (pct>=70) return '#2E7D5E'; if (pct>=50) return '#4aad82';
+  if (pct>=30) return '#E8A020'; if (pct>=15) return '#e07a20';
+  return '#C0392B';
+}
+
+// ── Dashboard render ──────────────────────────────
+function renderDashboard() {
+  const responses = getResponses();
+  const n = responses.length;
+  document.getElementById('responses-count').textContent =
+    `${n} resposta${n!==1?'s':''} registrada${n!==1?'s':''}`;
+
+  if (n === 0) {
+    document.getElementById('no-responses-state').style.display = 'block';
+    document.getElementById('dash-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('no-responses-state').style.display = 'none';
+  document.getElementById('dash-content').style.display = 'block';
+
+  const {catAvg, qs, hd, overall} = calcStats(responses);
+  renderMetrics(catAvg, overall);
+  renderBar(catAvg);
+  renderRanking(catAvg);
+  renderLine(responses);
+  renderDonut(responses);
+  renderHeatmap(qs, hd, n);
+  renderOpen(responses);
+}
+
+function renderMetrics(catAvg, overall) {
+  const cl = classify(overall);
+  let h = `<div class="metric-card ${cl.cls}"><div class="metric-label">Índice Geral de Clima</div><div class="metric-value ${cl.cls}">${overall.toFixed(2)}</div><span class="metric-badge ${cl.cls}">${cl.label}</span></div>`;
+  CATS.forEach(c => {
+    const s=catAvg[c.key], cl2=classify(s);
+    h += `<div class="metric-card ${cl2.cls}"><div class="metric-label">${c.label}</div><div class="metric-value ${cl2.cls}">${s.toFixed(2)}</div><span class="metric-badge ${cl2.cls}">${cl2.label}</span></div>`;
+  });
+  document.getElementById('metrics-grid').innerHTML = h;
+}
+function barColor(s) { return s>=4.5?'#2E7D5E':s>=4.0?'#3AA76D':s>=3.0?'#E8A020':'#C0392B'; }
+function renderBar(catAvg) {
+  const ctx = document.getElementById('barChart').getContext('2d');
+  if (charts.bar) charts.bar.destroy();
+  charts.bar = new Chart(ctx,{type:'bar',data:{
+    labels:CATS.map(c=>c.label),
+    datasets:[{label:'Índice',data:CATS.map(c=>+catAvg[c.key].toFixed(2)),
+      backgroundColor:CATS.map(c=>barColor(catAvg[c.key])),borderRadius:6,borderSkipped:false}]
+  },options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{min:0,max:5,ticks:{stepSize:1},grid:{color:'#E8ECF2'}},x:{grid:{display:false}}}}});
+}
+function renderRanking(catAvg) {
+  const sorted=[...CATS].sort((a,b)=>catAvg[b.key]-catAvg[a.key]);
+  const medals=['🥇','🥈','🥉'];
+  document.getElementById('ranking-list').innerHTML = sorted.map((c,i)=>{
+    const s=catAvg[c.key], bc=barColor(s);
+    return `<div class="ranking-item">
+      <div class="ranking-pos">${i<3?medals[i]:i+1}</div>
+      <div class="ranking-name">${c.label}</div>
+      <div class="ranking-bar-wrap"><div class="ranking-bar" style="width:${(s/5)*100}%;background:${bc}"></div></div>
+      <div class="ranking-score" style="color:${bc}">${s.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+function renderLine(responses) {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  if (charts.line) charts.line.destroy();
+  const byDay={};
+  responses.forEach(r=>{
+    const day=(r.ts||'').split('T')[0]||'?';
+    if(!byDay[day]) byDay[day]=[];
+    let s=0,c=0;
+    QUESTIONS.forEach(q=>{ const v=r.ans?.[q.id]||r.answers?.[q.id]; if(v){s+=v;c++;} });
+    if(c) byDay[day].push(s/c);
+  });
+  const labels=Object.keys(byDay).sort();
+  const data=labels.map(d=>{ const a=byDay[d]; return +(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2); });
+  charts.line = new Chart(ctx,{type:'line',data:{
+    labels:labels.map(d=>{ const p=d.split('-'); return p.length===3?`${p[2]}/${p[1]}`:d; }),
+    datasets:[{label:'Índice Geral',data,borderColor:'#2557A7',backgroundColor:'rgba(37,87,167,.08)',tension:.4,fill:true,pointBackgroundColor:'#2557A7',pointRadius:4}]
+  },options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{min:1,max:5,grid:{color:'#E8ECF2'}},x:{grid:{display:false}}}}});
+}
+function renderDonut(responses) {
+  const ctx = document.getElementById('doughnutChart').getContext('2d');
+  if (charts.donut) charts.donut.destroy();
+  const counts={1:0,2:0,3:0,4:0,5:0};
+  responses.forEach(r=>{ QUESTIONS.forEach(q=>{ const v=r.ans?.[q.id]||r.answers?.[q.id]; if(v) counts[v]++; }); });
+  charts.donut = new Chart(ctx,{type:'doughnut',data:{
+    labels:['1 - Muito Insatisfeito','2 - Insatisfeito','3 - Neutro','4 - Satisfeito','5 - Muito Satisfeito'],
+    datasets:[{data:[counts[1],counts[2],counts[3],counts[4],counts[5]],
+      backgroundColor:['#C0392B','#E8A020','#7B6DC8','#3AA76D','#2557A7'],borderWidth:0,hoverOffset:4}]
+  },options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:10.5},padding:9}}},cutout:'65%'}});
+}
+function renderHeatmap(qs, hd, total) {
+  document.getElementById('heatmap-grid').innerHTML = QUESTIONS.map(q=>{
+    let row=`<div class="heatmap-row"><div class="heatmap-label" title="${q.txt}">${q.txt}</div>`;
+    for(let v=1;v<=5;v++){
+      const cnt=hd[q.id][v]||0, pct=total?Math.round((cnt/total)*100):0;
+      const color=heatColor(pct);
+      row+=`<div class="heatmap-cell" style="background:${color};opacity:${.25+pct/100*.75}" title="${cnt} resp. (${pct}%)">${cnt}</div>`;
+    }
+    return row+'</div>';
+  }).join('');
+}
+function renderOpen(responses) {
+  const L={open1:[],open2:[],open3:[]};
+  responses.forEach(r=>{ if(r.open1) L.open1.push(r.open1); if(r.open2) L.open2.push(r.open2); if(r.open3) L.open3.push(r.open3); });
+  document.getElementById('open-badge').textContent = L.open1.length+L.open2.length+L.open3.length + ' respostas';
+  ['open1','open2','open3'].forEach(k=>{
+    document.getElementById(k+'-list').innerHTML = L[k].length
+      ? L[k].map(t=>`<div class="open-answer-item">${esc(t)}</div>`).join('')
+      : '<div style="font-size:12px;color:var(--gray-400);font-style:italic;padding:6px">Nenhuma resposta.</div>';
+  });
+}
+
+// ── Reset ─────────────────────────────────────────
+function confirmReset() {
+  if (confirm('⚠️ Isso apagará TODAS as respostas e liberará novos envios em todos os dispositivos.\n\nTem certeza?')) {
+    clearResponses();
+    toast('Pesquisa zerada com sucesso!','ok');
+    renderDashboard();
+  }
+}
+
+// ── AI Report ─────────────────────────────────────
+function openAI() {
+  const responses = getResponses();
+  if (!responses.length) { toast('Nenhuma resposta para analisar','err'); return; }
+  document.getElementById('ai-overlay').classList.add('show');
+  document.getElementById('ai-loading').style.display='flex';
+  document.getElementById('ai-content').style.display='none';
+
+  const {catAvg,overall}=calcStats(responses);
+  const openAnswers=responses.map(r=>({a:r.open1,b:r.open2,c:r.open3})).filter(o=>o.a||o.b||o.c).slice(0,20);
+
+  fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:`
+Você é especialista em clima organizacional. Analise os dados e retorne APENAS JSON válido (sem markdown):
+
+DADOS:
+${JSON.stringify({
+  total:responses.length,
+  geral:overall.toFixed(2),
+  cats:CATS.map(c=>({nome:c.label,idx:catAvg[c.key].toFixed(2),cls:classify(catAvg[c.key]).label})),
+  abertas:openAnswers
+})}
+
+JSON esperado:
+{"resumo":"2-3 parágrafos","fortes":["..."],"melhoria":["..."],"riscos":["..."],"recs":["..."],
+"plano":[{"acao":"","cat":"","prio":"Alta|Média|Baixa","prazo":"","impacto":""}],"nr01":"..."}
+`}]})
+  })
+  .then(r=>r.json()).then(d=>{
+    const txt=d.content.map(i=>i.text||'').join('');
+    const obj=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    renderAI(obj,responses.length,overall);
+  }).catch(()=>{
+    document.getElementById('ai-loading').style.display='none';
+    document.getElementById('ai-content').style.display='block';
+    document.getElementById('ai-content').innerHTML='<div style="text-align:center;padding:28px;color:var(--red)"><div style="font-size:30px;margin-bottom:8px">⚠️</div><p>Não foi possível gerar o relatório. Verifique a conexão e tente novamente.</p></div>';
+  });
+}
+function openAIReport(){ openAI(); }
+function closeAI(){ document.getElementById('ai-overlay').classList.remove('show'); }
+
+function renderAI(r,n,overall){
+  document.getElementById('ai-loading').style.display='none';
+  const el=document.getElementById('ai-content');
+  el.style.display='block';
+  const cl=classify(overall);
+  const planRows=(r.plano||[]).map(p=>`<tr><td>${p.acao}</td><td>${p.cat}</td>
+    <td><span class="prio-badge prio-${(p.prio||'').toLowerCase().replace('é','e').replace('í','i').replace('ê','e')}">${p.prio}</span></td>
+    <td>${p.prazo}</td><td>${p.impacto}</td></tr>`).join('');
+  el.innerHTML=`
+  <div style="background:var(--blue-light);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center">
+    <div style="font-size:24px">${cl.cls==='excellent'?'🟢':cl.cls==='good'?'🟡':cl.cls==='attention'?'🟠':'🔴'}</div>
+    <div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--blue-mid)">Índice Geral</div>
+      <div style="font-size:25px;font-weight:800;color:var(--blue-deep)">${overall.toFixed(2)} <span style="font-size:12px;font-weight:500;color:var(--gray-600)">/ 5,00 — ${cl.label}</span></div>
+      <div style="font-size:11px;color:var(--gray-600)">${n} respostas analisadas</div>
+    </div>
+  </div>
+  <div class="ai-section"><div class="ai-section-title">📋 Resumo Executivo</div><div class="ai-content"><p>${(r.resumo||'').replace(/\n/g,'</p><p>')}</p></div></div>
+  <div class="ai-section"><div class="ai-section-title">✅ Pontos Fortes</div><div class="ai-content"><ul>${(r.fortes||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-section"><div class="ai-section-title">⚠️ Pontos de Melhoria</div><div class="ai-content"><ul>${(r.melhoria||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-section"><div class="ai-section-title">🚨 Riscos Identificados</div><div class="ai-content"><ul>${(r.riscos||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-section"><div class="ai-section-title">💡 Recomendações</div><div class="ai-content"><ul>${(r.recs||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  ${planRows?`<div class="ai-section"><div class="ai-section-title">🗓️ Plano de Ação</div><div style="overflow-x:auto"><table class="action-table"><thead><tr><th>Ação</th><th>Categoria</th><th>Prioridade</th><th>Prazo</th><th>Impacto</th></tr></thead><tbody>${planRows}</tbody></table></div></div>`:''}
+  ${r.nr01?`<div class="ai-section"><div class="ai-section-title">📜 Conformidade NR-01</div><div class="ai-content"><p>${r.nr01}</p></div></div>`:''}
+  <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:7px">
+    <button class="btn-outline" onclick="exportPDF()">📄 PDF</button>
+    <button class="btn-primary" onclick="closeAI()">Fechar</button>
+  </div>`;
+}
+
+// ── Export ────────────────────────────────────────
+function exportExcel() {
+  const responses=getResponses();
+  if(!responses.length){toast('Nenhuma resposta para exportar','err');return;}
+  const {catAvg,overall}=calcStats(responses);
+  const wb=XLSX.utils.book_new();
+  const summary=[
+    ['Relatório de Clima Organizacional'],
+    ['Gerado em',new Date().toLocaleString('pt-BR')],
+    ['Total de Respostas',responses.length],[],
+    ['Categoria','Índice','Classificação'],
+    ['Índice Geral',+overall.toFixed(2),classify(overall).label],
+    ...CATS.map(c=>[c.label,+catAvg[c.key].toFixed(2),classify(catAvg[c.key]).label])
+  ];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summary),'Resumo');
+  const headers=['Data/Hora',...QUESTIONS.map(q=>q.txt),'Faz Bem','Melhorar','Sugestões'];
+  const rows=responses.map(r=>[
+    new Date(r.ts).toLocaleString('pt-BR'),
+    ...QUESTIONS.map(q=>r.ans?.[q.id]||r.answers?.[q.id]||''),
+    r.open1||'',r.open2||'',r.open3||''
+  ]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([headers,...rows]),'Respostas');
+  XLSX.writeFile(wb,`clima-${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportPDF() {
+  const responses=getResponses();
+  if(!responses.length){toast('Nenhuma resposta para exportar','err');return;}
+  const {catAvg,overall}=calcStats(responses);
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório Clima</title>
+<style>body{font-family:Arial,sans-serif;padding:36px;color:#2C3447;max-width:800px;margin:0 auto}
+h1{color:#1B3A6B;font-size:20px;border-bottom:2px solid #1B3A6B;padding-bottom:7px;margin-bottom:16px}
+h2{color:#1B3A6B;font-size:13px;margin-top:20px;margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin-top:6px}
+th{background:#1B3A6B;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+td{padding:7px 10px;border-bottom:1px solid #E8ECF2;font-size:12px}
+tr:nth-child(even) td{background:#F5F7FA}
+.badge{padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.excellent{background:#E8F5EF;color:#2E7D5E}.good{background:#E8F5EF;color:#3AA76D}
+.attention{background:#FEF3DC;color:#c47d0a}.critical{background:#FDECEA;color:#C0392B}
+.info{background:#EBF0FA;padding:12px 14px;border-radius:7px;margin-bottom:18px;font-size:12px;line-height:1.6}
+blockquote{border-left:3px solid #2557A7;padding-left:8px;margin:4px 0;color:#5A6478;font-size:12px}
+</style></head><body>
+<h1>Relatório de Clima Organizacional</h1>
+<div class="info">
+  <strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR')}&nbsp;&nbsp;
+  <strong>Respostas:</strong> ${responses.length}&nbsp;&nbsp;
+  <strong>Índice Geral:</strong> ${overall.toFixed(2)} / 5,00 — ${classify(overall).label}
+</div>
+<h1 style="font-size:15px;border:none;padding:0;margin-bottom:8px">Índices por Categoria</h1>
+<table><thead><tr><th>Categoria</th><th>Índice</th><th>Classificação</th></tr></thead><tbody>
+${CATS.map(c=>{const s=catAvg[c.key],cl=classify(s);return`<tr><td>${c.label}</td><td>${s.toFixed(2)}</td><td><span class="badge ${cl.cls}">${cl.label}</span></td></tr>`;}).join('')}
+</tbody></table>
+<h2>✅ O que a empresa faz bem</h2>
+${responses.filter(r=>r.open1).map(r=>`<blockquote>${esc(r.open1)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<h2>⚠️ O que precisa melhorar</h2>
+${responses.filter(r=>r.open2).map(r=>`<blockquote>${esc(r.open2)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<h2>💡 Sugestões para a diretoria</h2>
+${responses.filter(r=>r.open3).map(r=>`<blockquote>${esc(r.open3)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<p style="margin-top:32px;font-size:10px;color:#9BA8BB;text-align:center">Pesquisa 100% anônima — Nenhum dado identificador foi coletado</p>
+</body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),600);
+}
+
+// ── Utils ─────────────────────────────────────────
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg, type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+</script>
+</body>
+</html>
+HTMLEOF
+echo "OK"
+Saída
+
+Input validation errors occurred:
+description: Field required
