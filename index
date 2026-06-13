@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pesquisa de Clima — Sinal Vida</title>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ══════════════════════════════════════════════════
+//  🔥 CONFIGURAÇÃO FIREBASE — substitua pelos seus dados
+//  1. Acesse https://console.firebase.google.com
+//  2. Crie projeto → Web app → copie firebaseConfig
+//  3. Firestore Database → Create database (modo produção)
+//  4. Rules → altere para: allow read, write: if true;
+// ══════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAw36UYb-c3TWHKfvES5mWUMrptN8Jn4co",
+  authDomain: "pesquisa-de-clima-da9cf.firebaseapp.com",
+  projectId: "pesquisa-de-clima-da9cf",
+  storageBucket: "pesquisa-de-clima-da9cf.firebasestorage.app",
+  messagingSenderId: "491886415780",
+  appId: "1:491886415780:web:6da5d441893d3c5695fb31",
+  measurementId: "G-JSXSZ1QKCQ"
+};
+// ══════════════════════════════════════════════════
+
+let db = null;
+let firebaseOk = false;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  if (!firebaseConfig.apiKey.startsWith('COLE')) {
+    firebaseOk = true;
+    window._fbOk = true;
+  }
+} catch(e) { console.warn('Firebase não configurado:', e); }
+
+window._saveResponse = async function(data) {
+  if (!firebaseOk) throw new Error('firebase_not_configured');
+  await addDoc(collection(db, 'respostas'), {
+    ...data,
+    ts: serverTimestamp()
+  });
+};
+
+window._getResponses = async function(empresa) {
+  if (!firebaseOk) throw new Error('firebase_not_configured');
+  const q = query(collection(db, 'respostas'), where('empresa', '==', empresa));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+</script>
+
+<!-- Charts + XLSX -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --blue:#1B3A6B; --blue-m:#2557A7; --blue-l:#EBF0FA;
+  --green:#2E7D5E; --green-l:#E8F5EF;
+  --amber:#E8A020; --amber-l:#FEF3DC;
+  --red:#C0392B;   --red-l:#FDECEA;
+  --g100:#F5F7FA;  --g200:#E8ECF2; --g400:#9BA8BB;
+  --g600:#5A6478;  --g800:#2C3447;
+  --r:12px; --rs:8px;
+  --sd:0 1px 4px rgba(27,58,107,.08);
+  --sm:0 4px 16px rgba(27,58,107,.12);
+  --sl:0 8px 32px rgba(27,58,107,.18);
+}
+
+/* ── grafica brand ── */
+.brand-grafica  { --brand:#E07B00; --brand-l:#FFF3E0; --brand-m:#B86200; }
+/* ── semaforica brand ── */
+.brand-semaforica { --brand:#1B6B3A; --brand-l:#E8F5EF; --brand-m:#155230; }
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;font-family:'Inter',sans-serif;background:var(--g100);color:var(--g800)}
+
+/* ────────────────── HEADER ────────────────── */
+.hdr{
+  background:var(--blue);color:#fff;
+  padding:0 20px;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;box-shadow:var(--sm)
+}
+.hdr-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14.5px}
+.hdr-icon{width:30px;height:30px;background:var(--blue-m);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;font-size:15px}
+.hdr-nav{display:flex;gap:3px}
+.hdr-btn{padding:5px 12px;border-radius:6px;border:none;background:transparent;
+  color:rgba(255,255,255,.6);font-family:inherit;font-size:12.5px;font-weight:500;
+  cursor:pointer;transition:all .2s}
+.hdr-btn:hover,.hdr-btn.on{background:rgba(255,255,255,.18);color:#fff}
+
+/* ────────────────── VIEWS ────────────────── */
+.view{display:none}.view.on{display:block}
+
+/* ────────────────── COMPANY PICKER ────────────────── */
+.pick-wrap{
+  min-height:calc(100vh - 54px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 16px;
+}
+.pick-title{
+  font-size:13px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--g400);margin-bottom:10px
+}
+.pick-heading{
+  font-size:28px;font-weight:900;color:var(--blue);
+  letter-spacing:-1px;margin-bottom:6px;text-align:center
+}
+.pick-sub{font-size:14px;color:var(--g600);margin-bottom:36px;text-align:center;line-height:1.6}
+
+.pick-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.pick-card{
+  width:240px;background:#fff;border-radius:16px;
+  padding:28px 24px;border:2px solid var(--g200);
+  cursor:pointer;transition:all .25s;text-align:center;
+  box-shadow:var(--sd)
+}
+.pick-card:hover{transform:translateY(-4px);box-shadow:var(--sl)}
+.pick-card.grafica:hover   {border-color:#E07B00}
+.pick-card.semaforica:hover{border-color:#1B6B3A}
+.pick-emoji{font-size:44px;margin-bottom:14px}
+.pick-name{font-size:17px;font-weight:800;color:var(--blue);margin-bottom:6px}
+.pick-desc{font-size:12.5px;color:var(--g600);line-height:1.5}
+.pick-pill{
+  display:inline-block;margin-top:14px;
+  font-size:11px;font-weight:700;padding:4px 12px;
+  border-radius:99px;text-transform:uppercase;letter-spacing:.4px
+}
+.pick-card.grafica   .pick-pill{background:#FFF3E0;color:#E07B00}
+.pick-card.semaforica .pick-pill{background:#E8F5EF;color:#1B6B3A}
+
+.pick-anon{
+  margin-top:32px;background:var(--green-l);border:1.5px solid #a3d4bf;
+  border-radius:var(--r);padding:14px 18px;max-width:460px;
+  display:flex;gap:10px;align-items:flex-start
+}
+.pick-anon h4{font-size:12.5px;font-weight:700;color:var(--green);margin-bottom:3px}
+.pick-anon p{font-size:12px;color:#3a6e57;line-height:1.5}
+
+/* ────────────────── SURVEY ────────────────── */
+.sv-wrap{max-width:680px;margin:0 auto;padding:22px 14px 60px}
+
+.sv-company-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 14px;border-radius:99px;
+  font-size:12px;font-weight:700;margin-bottom:18px;
+  border:1.5px solid
+}
+.sv-company-badge.grafica   {background:#FFF3E0;border-color:#f5c87a;color:#E07B00}
+.sv-company-badge.semaforica{background:#E8F5EF;border-color:#a3d4bf;color:#1B6B3A}
+
+.sv-title{font-size:22px;font-weight:800;color:var(--blue);letter-spacing:-.5px;margin-bottom:6px}
+.sv-sub  {font-size:13px;color:var(--g600);line-height:1.55;margin-bottom:22px}
+
+.prog-wrap{margin-bottom:20px}
+.prog-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--g400);margin-bottom:6px;font-weight:500}
+.prog-bar{height:5px;background:var(--g200);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blue-m),#4A90D9);border-radius:99px;transition:width .4s}
+
+.sec{background:#fff;border-radius:var(--r);padding:20px;margin-bottom:14px;
+  box-shadow:var(--sd);border:1px solid var(--g200)}
+.sec-hd{display:flex;align-items:center;gap:9px;margin-bottom:16px}
+.sec-ico{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font-size:16px;background:var(--blue-l)}
+.sec-hd h2{font-size:14.5px;font-weight:700;color:var(--blue)}
+
+.qi{margin-bottom:15px}.qi:last-child{margin-bottom:0}
+.qt{font-size:12.5px;color:var(--g800);margin-bottom:8px;font-weight:500;line-height:1.5}
+.sr{display:flex;gap:4px}
+.sb{flex:1;height:42px;border-radius:var(--rs);border:1.5px solid var(--g200);
+  background:var(--g100);cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-family:inherit;
+  font-size:14px;font-weight:700;color:var(--g600);transition:all .15s}
+.sb:hover{border-color:var(--blue-m);color:var(--blue-m);background:var(--blue-l)}
+.sb.s1{background:#FDECEA;border-color:var(--red);color:var(--red)}
+.sb.s2{background:#FEF3DC;border-color:var(--amber);color:#c47d0a}
+.sb.s3{background:#F0EEF8;border-color:#7B6DC8;color:#5a50a0}
+.sb.s4{background:#E8F5EF;border-color:#4aad82;color:#2a7d58}
+.sb.s5{background:var(--blue-l);border-color:var(--blue-m);color:var(--blue-m)}
+.sl_{font-size:8.5px;font-weight:400;line-height:1.2;text-align:center;margin-top:2px;display:none}
+@media(min-width:430px){.sl_{display:block}}
+
+.oq{margin-bottom:14px}.oq:last-child{margin-bottom:0}
+.oq label{display:block;font-size:12.5px;font-weight:500;color:var(--g800);margin-bottom:6px;line-height:1.5}
+.oq textarea{width:100%;min-height:76px;border:1.5px solid var(--g200);border-radius:var(--rs);
+  padding:10px;font-family:inherit;font-size:12.5px;color:var(--g800);
+  resize:vertical;background:var(--g100);transition:border-color .2s}
+.oq textarea:focus{outline:none;border-color:var(--blue-m);background:#fff}
+.oq textarea::placeholder{color:var(--g400)}
+
+.submit-area{text-align:center;margin-top:24px}
+.btn-p{background:var(--blue);color:#fff;border:none;padding:12px 36px;
+  border-radius:var(--rs);font-family:inherit;font-size:14px;font-weight:600;
+  cursor:pointer;transition:all .2s;box-shadow:0 4px 12px rgba(27,58,107,.28)}
+.btn-p:hover{background:var(--blue-m);transform:translateY(-1px)}
+.btn-p:disabled{opacity:.55;cursor:not-allowed;transform:none}
+
+.spl-screen{display:none;text-align:center;padding:52px 20px;background:#fff;
+  border-radius:var(--r);box-shadow:var(--sd)}
+.spl-screen.on{display:block}
+.spl-ico{font-size:52px;margin-bottom:14px}
+
+/* ────────────────── LOGIN ────────────────── */
+.login-ov{display:none;position:fixed;inset:0;background:rgba(27,58,107,.6);
+  z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.login-ov.on{display:flex}
+.login-box{background:#fff;border-radius:16px;padding:32px 28px;
+  max-width:350px;width:100%;box-shadow:var(--sl);text-align:center}
+.login-box h2{font-size:18px;font-weight:800;color:var(--blue);margin-bottom:5px}
+.login-box p{font-size:12.5px;color:var(--g600);margin-bottom:20px}
+.login-box input{width:100%;padding:11px 13px;border:1.5px solid var(--g200);
+  border-radius:var(--rs);font-family:inherit;font-size:13.5px;
+  margin-bottom:10px;outline:none;transition:border-color .2s}
+.login-box input:focus{border-color:var(--blue-m)}
+.login-err{color:var(--red);font-size:12px;margin-bottom:8px;display:none}
+.login-err.on{display:block}
+
+/* ────────────────── DASHBOARD ────────────────── */
+.db-wrap{padding:20px 14px 60px;max-width:1200px;margin:0 auto}
+
+/* Setup warning */
+.setup-warn{
+  background:#fff8e1;border:1.5px solid #ffc107;border-radius:var(--rs);
+  padding:12px 16px;margin-bottom:16px;font-size:12.5px;line-height:1.6;
+  display:none
+}
+.setup-warn.on{display:block}
+.setup-warn a{color:var(--blue-m)}
+
+.db-topbar{display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.db-topbar h1{font-size:19px;font-weight:800;color:var(--blue)}
+.db-company-tag{
+  display:inline-flex;align-items:center;gap:6px;margin-top:4px;
+  font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px
+}
+.db-company-tag.grafica   {background:#FFF3E0;color:#E07B00;border:1px solid #f5c87a}
+.db-company-tag.semaforica{background:#E8F5EF;color:#1B6B3A;border:1px solid #a3d4bf}
+
+.rc{background:var(--blue-l);color:var(--blue-m);font-size:11px;font-weight:600;
+  padding:3px 10px;border-radius:99px;display:inline-block;margin-top:3px}
+
+.db-acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn-o{background:#fff;border:1.5px solid var(--g200);color:var(--g600);
+  padding:7px 13px;border-radius:var(--rs);font-family:inherit;font-size:12.5px;
+  font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px}
+.btn-o:hover{border-color:var(--blue-m);color:var(--blue-m);background:var(--blue-l)}
+.btn-ai{background:linear-gradient(135deg,#2557A7,#4A90D9);color:#fff;border:none;
+  padding:7px 14px;border-radius:var(--rs);font-family:inherit;font-size:12.5px;
+  font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(37,87,167,.28)}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,87,167,.38)}
+.btn-d{background:var(--red-l);border:1.5px solid #e8b4b0;color:var(--red);
+  padding:7px 13px;border-radius:var(--rs);font-family:inherit;font-size:12.5px;
+  font-weight:600;cursor:pointer;transition:all .2s}
+.btn-d:hover{background:var(--red);color:#fff}
+
+/* Loading state */
+.db-loading{text-align:center;padding:52px 20px;background:#fff;border-radius:var(--r);
+  box-shadow:var(--sd)}
+.spin{width:36px;height:36px;border:3px solid var(--blue-l);border-top-color:var(--blue-m);
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty-st{text-align:center;padding:52px 20px;background:#fff;border-radius:var(--r);
+  box-shadow:var(--sd);border:1px solid var(--g200)}
+.empty-st .ico{font-size:42px;margin-bottom:13px}
+.empty-st h3{font-size:16px;font-weight:700;color:var(--blue);margin-bottom:6px}
+.empty-st p{color:var(--g600);font-size:13px;line-height:1.6}
+
+/* Metrics */
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.mc{background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sd);
+  border:1px solid var(--g200);position:relative;overflow:hidden}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:var(--r) var(--r) 0 0}
+.mc.excellent::before{background:var(--green)}.mc.good::before{background:#3AA76D}
+.mc.attention::before{background:var(--amber)}.mc.critical::before{background:var(--red)}
+.ml{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--g400);margin-bottom:6px}
+.mv{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1}
+.mv.excellent{color:var(--green)}.mv.good{color:#3AA76D}
+.mv.attention{color:var(--amber)}.mv.critical{color:var(--red)}
+.mb_{display:inline-block;margin-top:5px;font-size:10px;font-weight:700;padding:2px 7px;
+  border-radius:99px;text-transform:uppercase;letter-spacing:.3px}
+.mb_.excellent{background:var(--green-l);color:var(--green)}.mb_.good{background:#E8F5EF;color:#3AA76D}
+.mb_.attention{background:var(--amber-l);color:#c47d0a}.mb_.critical{background:var(--red-l);color:var(--red)}
+
+/* Grid */
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:720px){.dg{grid-template-columns:1fr}}
+.dc{background:#fff;border-radius:var(--r);padding:16px;box-shadow:var(--sd);border:1px solid var(--g200)}
+.dc.full{grid-column:1/-1}
+.dc h3{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:13px;display:flex;align-items:center;gap:7px}
+.dc h3 .badge{background:var(--blue-l);color:var(--blue-m);font-size:9.5px;padding:2px 7px;border-radius:99px;font-weight:600}
+
+/* Ranking */
+.rl{display:flex;flex-direction:column;gap:6px}
+.ri{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rs);background:var(--g100);border:1px solid var(--g200)}
+.rp{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+.rn{flex:1;font-size:12px;font-weight:500}
+.rs_{font-size:14px;font-weight:800}
+.rb_{flex:0 0 60px;height:5px;background:var(--g200);border-radius:99px;overflow:hidden}
+.rb_ div{height:100%;border-radius:99px}
+
+/* Heatmap */
+.hm-grid{display:grid;gap:3px}
+.hm-row{display:grid;grid-template-columns:165px repeat(5,1fr);gap:3px;align-items:center}
+.hm-label{font-size:10.5px;color:var(--g600);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:5px}
+.hm-cell{height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;cursor:default;transition:transform .15s}
+.hm-cell:hover{transform:scale(1.08)}
+.hm-hdr{display:grid;grid-template-columns:165px repeat(5,1fr);gap:3px;margin-bottom:3px}
+.hm-hdr span{text-align:center;font-size:9px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.4px}
+
+/* Open answers */
+.oa-list{display:flex;flex-direction:column;gap:6px}
+.oa-item{padding:9px 12px;background:var(--g100);border-radius:var(--rs);border-left:3px solid var(--blue-m);font-size:12.5px;line-height:1.6;color:var(--g600)}
+
+/* ────────────────── AI MODAL ────────────────── */
+.ai-ov{display:none;position:fixed;inset:0;background:rgba(27,58,107,.5);z-index:200;
+  align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
+.ai-ov.on{display:flex}
+.ai-modal{background:#fff;border-radius:16px;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--sl)}
+.ai-hdr{background:linear-gradient(135deg,var(--blue),var(--blue-m));color:#fff;padding:20px;border-radius:16px 16px 0 0;display:flex;justify-content:space-between;align-items:flex-start}
+.ai-hdr h2{font-size:16px;font-weight:800;margin-bottom:3px}
+.ai-hdr p{font-size:11px;opacity:.75}
+.btn-x{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ai-body{padding:20px}
+.ai-sec{margin-bottom:16px}
+.ai-sec-t{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--blue);margin-bottom:9px;padding-bottom:6px;border-bottom:1px solid var(--g200)}
+.ai-ld{display:flex;flex-direction:column;align-items:center;padding:32px;text-align:center;gap:10px}
+.ai-c p{font-size:12.5px;line-height:1.7;color:var(--g800);margin-bottom:6px}
+.ai-c ul{padding-left:17px}
+.ai-c li{font-size:12.5px;line-height:1.7;color:var(--g800);margin-bottom:3px}
+.at{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.at th{background:var(--blue);color:#fff;padding:7px 10px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.at td{padding:7px 10px;border-bottom:1px solid var(--g200)}
+.at tr:nth-child(even) td{background:var(--g100)}
+.pb{padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.pa{background:var(--red-l);color:var(--red)}.pm{background:var(--amber-l);color:#c47d0a}.pb_{background:var(--green-l);color:var(--green)}
+
+/* ────────────────── TOAST ────────────────── */
+.toast{position:fixed;bottom:20px;right:20px;padding:11px 18px;border-radius:var(--rs);
+  font-size:13px;font-weight:500;box-shadow:var(--sl);z-index:999;
+  transform:translateY(70px);opacity:0;transition:all .3s;
+  pointer-events:none;max-width:320px;color:#fff;background:var(--g800)}
+.toast.on{transform:translateY(0);opacity:1}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.warn{background:var(--amber)}
+
+@media(max-width:480px){
+  .hm-row,.hm-hdr{grid-template-columns:95px repeat(5,1fr)}
+  .hm-label{font-size:9px}
+  .pick-card{width:100%;max-width:320px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="hdr">
+  <div class="hdr-logo">
+    <div class="hdr-icon">🌡️</div>
+    <span>Clima Organizacional</span>
+  </div>
+  <nav class="hdr-nav">
+    <button class="hdr-btn on" id="btn-home"  onclick="navHome()">🏠 Início</button>
+    <button class="hdr-btn"   id="btn-survey" onclick="navSurvey()" style="display:none">📋 Pesquisa</button>
+    <button class="hdr-btn"   id="btn-dash"   onclick="navDash()">📊 Dashboard</button>
+  </nav>
+</header>
+
+<!-- ═══ LOGIN MODAL ═══ -->
+<div class="login-ov" id="login-ov">
+  <div class="login-box">
+    <div style="font-size:36px;margin-bottom:10px">🔐</div>
+    <h2>Acesso Restrito</h2>
+    <p id="login-desc">Área exclusiva para gestores.</p>
+    <input type="password" id="login-inp" placeholder="Digite a senha"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-err" id="login-err">Senha incorreta. Tente novamente.</div>
+    <button class="btn-p" style="width:100%;margin-top:4px" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+
+<!-- ═══ VIEW: COMPANY PICKER ═══ -->
+<div id="v-home" class="view on">
+  <div class="pick-wrap">
+    <div class="pick-title">Sinal Vida — Pesquisa Interna</div>
+    <h1 class="pick-heading">Pesquisa de Clima Operacional</h1>
+    <p class="pick-sub">Selecione sua empresa para começar.<br>A pesquisa é 100% anônima e leva cerca de 5 minutos.</p>
+
+    <div class="pick-cards">
+      <div class="pick-card grafica" onclick="selectEmpresa('grafica')">
+        <div class="pick-emoji">🚧</div>
+        <div class="pick-name">Sinalização Viária</div>
+        <div class="pick-desc">Colaboradores de sinalização horizontal, vertical, pinturas, placas e tachinhas</div>
+        <div class="pick-pill">Selecionar →</div>
+      </div>
+      <div class="pick-card semaforica" onclick="selectEmpresa('semaforica')">
+        <div class="pick-emoji">🚦</div>
+        <div class="pick-name">Semafórica</div>
+        <div class="pick-desc">Colaboradores da área de semáforos, projetos e manutenção elétrica</div>
+        <div class="pick-pill">Selecionar →</div>
+      </div>
+    </div>
+
+    <div class="pick-anon">
+      <span style="font-size:20px;flex-shrink:0">🛡️</span>
+      <div>
+        <h4>100% Anônimo — Sem rastreamento</h4>
+        <p>Não coletamos nome, e-mail, IP ou qualquer dado pessoal. Suas respostas são completamente confidenciais.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VIEW: SURVEY ═══ -->
+<div id="v-survey" class="view">
+  <div class="sv-wrap">
+
+    <!-- Já respondeu -->
+    <div class="spl-screen" id="already-sc">
+      <div class="spl-ico">✅</div>
+      <h2 style="font-size:19px;font-weight:800;color:var(--blue);margin-bottom:9px">Você já respondeu esta pesquisa</h2>
+      <p style="color:var(--g600);line-height:1.6;max-width:340px;margin:0 auto 20px">
+        Sua resposta já foi registrada neste dispositivo. A pesquisa permite apenas <strong>1 resposta por aparelho</strong>.</p>
+      <button class="btn-p" onclick="navHome()">← Voltar ao Início</button>
+    </div>
+
+    <!-- Sucesso -->
+    <div class="spl-screen" id="success-sc">
+      <div class="spl-ico">🎉</div>
+      <h2 style="font-size:19px;font-weight:800;color:var(--green);margin-bottom:9px">Obrigado pela participação!</h2>
+      <p style="color:var(--g600);line-height:1.6;max-width:340px;margin:0 auto 20px">
+        Suas respostas foram registradas com sucesso de forma <strong>completamente anônima</strong>.</p>
+      <button class="btn-p" onclick="navHome()">← Voltar ao Início</button>
+    </div>
+
+    <!-- Formulário -->
+    <div id="sv-form">
+      <div id="sv-badge" class="sv-company-badge">🏢 Empresa</div>
+      <div class="sv-title">Pesquisa de Clima Operacional</div>
+      <div class="sv-sub">Sua opinião é fundamental para melhorarmos o ambiente de trabalho.</div>
+
+      <div class="prog-wrap">
+        <div class="prog-row"><span>Progresso</span><span id="prog-txt">0 de 18</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+
+      <!-- LIDERANÇA -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">👔</div><h2>Liderança</h2></div>
+        <div class="qi"><div class="qt">1. Meu gestor fornece orientações claras.</div><div class="sr" id="r-q1"><button class="sb" onclick="sel(this,1,'q1')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q1')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q1')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q1')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q1')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">2. Recebo feedback sobre meu desempenho.</div><div class="sr" id="r-q2"><button class="sb" onclick="sel(this,1,'q2')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q2')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q2')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q2')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q2')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">3. Minha liderança trata os colaboradores com respeito.</div><div class="sr" id="r-q3"><button class="sb" onclick="sel(this,1,'q3')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q3')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q3')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q3')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q3')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">4. Confio nas decisões da liderança.</div><div class="sr" id="r-q4"><button class="sb" onclick="sel(this,1,'q4')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q4')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q4')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q4')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q4')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- COMUNICAÇÃO -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">💬</div><h2>Comunicação</h2></div>
+        <div class="qi"><div class="qt">5. As informações chegam de forma clara.</div><div class="sr" id="r-q5"><button class="sb" onclick="sel(this,1,'q5')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q5')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q5')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q5')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q5')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">6. Sei o que é esperado de mim.</div><div class="sr" id="r-q6"><button class="sb" onclick="sel(this,1,'q6')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q6')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q6')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q6')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q6')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">7. Existe boa comunicação entre os setores.</div><div class="sr" id="r-q7"><button class="sb" onclick="sel(this,1,'q7')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q7')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q7')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q7')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q7')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- OPERACIONAL -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">⚙️</div><h2>Condições Operacionais</h2></div>
+        <div class="qi"><div class="qt">8. Possuo os recursos necessários para realizar meu trabalho.</div><div class="sr" id="r-q8"><button class="sb" onclick="sel(this,1,'q8')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q8')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q8')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q8')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q8')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">9. Os equipamentos estão em boas condições.</div><div class="sr" id="r-q9"><button class="sb" onclick="sel(this,1,'q9')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q9')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q9')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q9')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q9')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">10. Os processos da empresa facilitam meu trabalho.</div><div class="sr" id="r-q10"><button class="sb" onclick="sel(this,1,'q10')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q10')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q10')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q10')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q10')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- SEGURANÇA -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">🦺</div><h2>Segurança</h2></div>
+        <div class="qi"><div class="qt">11. Sinto-me seguro durante minhas atividades.</div><div class="sr" id="r-q11"><button class="sb" onclick="sel(this,1,'q11')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q11')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q11')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q11')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q11')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">12. Recebo orientações adequadas sobre segurança.</div><div class="sr" id="r-q12"><button class="sb" onclick="sel(this,1,'q12')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q12')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q12')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q12')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q12')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">13. A empresa demonstra preocupação com saúde e segurança.</div><div class="sr" id="r-q13"><button class="sb" onclick="sel(this,1,'q13')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q13')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q13')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q13')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q13')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- CLIMA -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">🤝</div><h2>Clima Organizacional</h2></div>
+        <div class="qi"><div class="qt">14. Existe respeito entre os colaboradores.</div><div class="sr" id="r-q14"><button class="sb" onclick="sel(this,1,'q14')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q14')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q14')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q14')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q14')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">15. O ambiente de trabalho é agradável.</div><div class="sr" id="r-q15"><button class="sb" onclick="sel(this,1,'q15')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q15')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q15')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q15')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q15')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">16. Eu recomendaria a empresa para trabalhar.</div><div class="sr" id="r-q16"><button class="sb" onclick="sel(this,1,'q16')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q16')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q16')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q16')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q16')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- DESENVOLVIMENTO -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">🎯</div><h2>Desenvolvimento</h2></div>
+        <div class="qi"><div class="qt">17. Tenho oportunidades de aprendizado.</div><div class="sr" id="r-q17"><button class="sb" onclick="sel(this,1,'q17')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q17')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q17')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q17')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q17')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+        <div class="qi"><div class="qt">18. Tenho possibilidade de crescimento profissional.</div><div class="sr" id="r-q18"><button class="sb" onclick="sel(this,1,'q18')">1<span class="sl_">Muito<br>Insatisfeito</span></button><button class="sb" onclick="sel(this,2,'q18')">2<span class="sl_">Insatisfeito</span></button><button class="sb" onclick="sel(this,3,'q18')">3<span class="sl_">Neutro</span></button><button class="sb" onclick="sel(this,4,'q18')">4<span class="sl_">Satisfeito</span></button><button class="sb" onclick="sel(this,5,'q18')">5<span class="sl_">Muito<br>Satisfeito</span></button></div></div>
+      </div>
+
+      <!-- ABERTAS -->
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-ico">✏️</div><h2>Perguntas Abertas <span style="font-size:11px;font-weight:400;color:var(--g400)">(opcional)</span></h2></div>
+        <div class="oq"><label>O que a empresa faz bem?</label><textarea id="open1" placeholder="Compartilhe o que você aprecia..."></textarea></div>
+        <div class="oq"><label>O que precisa melhorar?</label><textarea id="open2" placeholder="Descreva o que poderia melhorar..."></textarea></div>
+        <div class="oq"><label>Sugestões para a diretoria.</label><textarea id="open3" placeholder="Suas sugestões são bem-vindas..."></textarea></div>
+      </div>
+
+      <div class="submit-area">
+        <p style="font-size:11px;color:var(--g400);margin-bottom:12px">Ao enviar, você confirma que suas respostas são anônimas.</p>
+        <button class="btn-p" id="submit-btn" onclick="submitSurvey()">✅ Enviar Pesquisa</button>
+      </div>
+    </div><!-- /sv-form -->
+  </div>
+</div>
+
+<!-- ═══ VIEW: DASHBOARD ═══ -->
+<div id="v-dashboard" class="view">
+  <div class="db-wrap">
+
+    <!-- Firebase setup warning -->
+    <div class="setup-warn" id="setup-warn">
+      ⚠️ <strong>Firebase não configurado.</strong> As respostas não estão sendo salvas em nuvem.
+      Configure o Firebase para que respostas de todos os aparelhos apareçam aqui.
+      <a href="https://console.firebase.google.com" target="_blank">Abrir Firebase Console →</a>
+    </div>
+
+    <div class="db-topbar">
+      <div>
+        <h1 id="db-title">📊 Dashboard</h1>
+        <div id="db-company-tag" class="db-company-tag"></div>
+        <div class="rc" id="db-rc">0 respostas</div>
+      </div>
+      <div class="db-acts">
+        <button class="btn-o" onclick="loadDash()">🔄 Atualizar</button>
+        <button class="btn-o" onclick="exportExcel()">📥 Excel</button>
+        <button class="btn-o" onclick="exportPDF()">📄 PDF</button>
+        <button class="btn-ai" onclick="openAI()">✨ Relatório IA</button>
+      </div>
+    </div>
+
+    <div id="db-loading" class="db-loading" style="display:none">
+      <div class="spin"></div>
+      <p style="font-size:13px;color:var(--g600)">Buscando respostas da nuvem...</p>
+    </div>
+
+    <div id="db-empty" style="display:none">
+      <div class="empty-st">
+        <div class="ico">📋</div>
+        <h3>Nenhuma resposta ainda</h3>
+        <p>Quando os colaboradores responderem, os dados aparecerão aqui em tempo real.</p>
+      </div>
+    </div>
+
+    <div id="db-content" style="display:none">
+      <div class="mg" id="metrics-grid"></div>
+      <div class="dg">
+        <div class="dc"><h3>📈 Índice por Categoria</h3><canvas id="barChart" height="230"></canvas></div>
+        <div class="dc"><h3>🏆 Ranking</h3><div class="rl" id="ranking-list"></div></div>
+        <div class="dc"><h3>📅 Evolução Histórica <span class="badge">Por dia</span></h3><canvas id="lineChart" height="210"></canvas></div>
+        <div class="dc"><h3>🎯 Distribuição das Avaliações</h3><canvas id="doughnutChart" height="210"></canvas></div>
+        <div class="dc full">
+          <h3>🌡️ Mapa de Calor — Todas as Perguntas</h3>
+          <div style="overflow-x:auto">
+            <div class="hm-hdr"><span></span><span>1 — Muito Insatisfeito</span><span>2 — Insatisfeito</span><span>3 — Neutro</span><span>4 — Satisfeito</span><span>5 — Muito Satisfeito</span></div>
+            <div class="hm-grid" id="heatmap-grid"></div>
+          </div>
+        </div>
+        <div class="dc full">
+          <h3>💬 Respostas Abertas <span class="badge" id="open-badge">0</span></h3>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green);margin-bottom:7px">✅ O que a empresa faz bem</div>
+            <div class="oa-list" id="oa1"></div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--amber);margin-bottom:7px">⚠️ O que precisa melhorar</div>
+            <div class="oa-list" id="oa2"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--blue-m);margin-bottom:7px">💡 Sugestões para a diretoria</div>
+            <div class="oa-list" id="oa3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AI MODAL ═══ -->
+<div class="ai-ov" id="ai-ov">
+  <div class="ai-modal">
+    <div class="ai-hdr">
+      <div><h2>✨ Relatório Executivo — Análise de IA</h2><p>Gerado com base nas respostas coletadas</p></div>
+      <button class="btn-x" onclick="closeAI()">✕</button>
+    </div>
+    <div class="ai-body">
+      <div class="ai-ld" id="ai-ld"><div class="spin"></div><p style="font-size:13px;color:var(--g600)">Analisando dados...</p></div>
+      <div id="ai-ct" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  ⚙️  CONFIGURAÇÕES
+// ══════════════════════════════════════════════════
+const CFG = {
+  // Senhas por empresa — altere à vontade
+  PASSWORDS: {
+    grafica:    'Sinalvida@2025',
+    semaforica: 'Sinalvida@2025',
+  },
+  LABELS: {
+    grafica:    { nome:'Sinalização Viária',  emoji:'🚧' },
+    semaforica: { nome:'Semafórica', emoji:'🚦' },
+  }
+};
+// ══════════════════════════════════════════════════
+
+const QUESTIONS = [
+  {id:'q1', cat:'lideranca',     txt:'Orientações claras do gestor'},
+  {id:'q2', cat:'lideranca',     txt:'Feedback de desempenho'},
+  {id:'q3', cat:'lideranca',     txt:'Respeito da liderança'},
+  {id:'q4', cat:'lideranca',     txt:'Confiança nas decisões'},
+  {id:'q5', cat:'comunicacao',   txt:'Clareza das informações'},
+  {id:'q6', cat:'comunicacao',   txt:'Clareza das expectativas'},
+  {id:'q7', cat:'comunicacao',   txt:'Comunicação entre setores'},
+  {id:'q8', cat:'operacional',   txt:'Recursos disponíveis'},
+  {id:'q9', cat:'operacional',   txt:'Condição dos equipamentos'},
+  {id:'q10',cat:'operacional',   txt:'Processos facilitadores'},
+  {id:'q11',cat:'seguranca',     txt:'Segurança nas atividades'},
+  {id:'q12',cat:'seguranca',     txt:'Orientações de segurança'},
+  {id:'q13',cat:'seguranca',     txt:'Preocupação c/ saúde e seg.'},
+  {id:'q14',cat:'clima',         txt:'Respeito entre colaboradores'},
+  {id:'q15',cat:'clima',         txt:'Ambiente de trabalho'},
+  {id:'q16',cat:'clima',         txt:'Recomendaria a empresa'},
+  {id:'q17',cat:'desenvolvimento',txt:'Oportunidades de aprendizado'},
+  {id:'q18',cat:'desenvolvimento',txt:'Crescimento profissional'},
+];
+const CATS = [
+  {key:'lideranca',      label:'Liderança',      qs:['q1','q2','q3','q4']},
+  {key:'comunicacao',    label:'Comunicação',     qs:['q5','q6','q7']},
+  {key:'operacional',    label:'Operacional',     qs:['q8','q9','q10']},
+  {key:'seguranca',      label:'Segurança',       qs:['q11','q12','q13']},
+  {key:'clima',          label:'Clima Org.',      qs:['q14','q15','q16']},
+  {key:'desenvolvimento',label:'Desenvolvimento', qs:['q17','q18']},
+];
+
+// State
+let currentEmpresa = null;  // 'grafica' | 'semaforica'
+let dashEmpresa    = null;
+let answers        = {};
+let charts         = {};
+let cachedResponses= [];
+let pendingDash    = null;  // empresa pendente de login
+
+// ── fingerprint ──────────────────────────────────
+function fp() {
+  const n=navigator, s=screen;
+  const raw=[n.userAgent,n.language,n.hardwareConcurrency||'',
+    s.width,s.height,s.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,n.cookieEnabled].join('|');
+  let h=2166136261;
+  for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=(h*16777619)>>>0;}
+  return 'fp'+h.toString(36);
+}
+function alreadyVoted(empresa) { return localStorage.getItem('voted_'+empresa) === fp(); }
+function markVoted(empresa)    { localStorage.setItem('voted_'+empresa, fp()); }
+
+// ── session auth ─────────────────────────────────
+function isAuth(empresa) { return sessionStorage.getItem('auth_'+empresa) === '1'; }
+function setAuth(empresa){ sessionStorage.setItem('auth_'+empresa,'1'); }
+
+// ── navigation ────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+function navHome() {
+  show('v-home');
+  document.getElementById('btn-home').classList.add('on');
+  document.getElementById('btn-survey').style.display='none';
+  document.getElementById('btn-dash').classList.remove('on');
+  currentEmpresa = null;
+}
+function navSurvey() {
+  if (!currentEmpresa) { navHome(); return; }
+  show('v-survey');
+  document.getElementById('btn-survey').style.display='';
+  document.getElementById('btn-survey').classList.add('on');
+  document.getElementById('btn-dash').classList.remove('on');
+  document.getElementById('btn-home').classList.remove('on');
+}
+function navDash() {
+  // show picker if no company context
+  openDashLogin(dashEmpresa || null);
+}
+
+function selectEmpresa(empresa) {
+  currentEmpresa = empresa;
+  const info = CFG.LABELS[empresa];
+
+  // update badge
+  const badge = document.getElementById('sv-badge');
+  badge.textContent = info.emoji + ' ' + info.nome;
+  badge.className = 'sv-company-badge ' + empresa;
+
+  // check if already voted
+  if (alreadyVoted(empresa)) {
+    document.getElementById('sv-form').style.display='none';
+    document.getElementById('already-sc').classList.add('on');
+    document.getElementById('success-sc').classList.remove('on');
+  } else {
+    document.getElementById('sv-form').style.display='';
+    document.getElementById('already-sc').classList.remove('on');
+    document.getElementById('success-sc').classList.remove('on');
+    // reset form
+    answers={};
+    document.querySelectorAll('.sb').forEach(b=>b.className='sb');
+    ['open1','open2','open3'].forEach(id=>document.getElementById(id).value='');
+    updateProg();
+  }
+  navSurvey();
+}
+
+// ── dashboard login flow ──────────────────────────
+function openDashLogin(empresa) {
+  if (empresa && isAuth(empresa)) {
+    openDashboard(empresa);
+    return;
+  }
+  // Show login asking which company if none provided
+  const desc = empresa
+    ? `Dashboard da ${CFG.LABELS[empresa].nome}`
+    : 'Selecione a empresa no login abaixo';
+  document.getElementById('login-desc').textContent =
+    (empresa ? `${CFG.LABELS[empresa].emoji} ${desc}` : desc) + ' — senha de gestor.';
+  pendingDash = empresa;
+  document.getElementById('login-inp').value='';
+  document.getElementById('login-err').classList.remove('on');
+  document.getElementById('login-ov').classList.add('on');
+  setTimeout(()=>document.getElementById('login-inp').focus(),120);
+}
+
+function doLogin() {
+  const val = document.getElementById('login-inp').value;
+  // Try to match password against both companies if no pendingDash
+  let matched = null;
+  if (pendingDash) {
+    if (val === CFG.PASSWORDS[pendingDash]) matched = pendingDash;
+  } else {
+    for (const emp of ['grafica','semaforica']) {
+      if (val === CFG.PASSWORDS[emp]) { matched = emp; break; }
+    }
+  }
+  if (matched) {
+    setAuth(matched);
+    document.getElementById('login-ov').classList.remove('on');
+    document.getElementById('login-err').classList.remove('on');
+    document.getElementById('login-inp').value='';
+    openDashboard(matched);
+  } else {
+    document.getElementById('login-err').classList.add('on');
+    document.getElementById('login-inp').value='';
+    document.getElementById('login-inp').focus();
+  }
+}
+
+function openDashboard(empresa) {
+  dashEmpresa = empresa;
+  const info = CFG.LABELS[empresa];
+  document.getElementById('db-title').textContent = `📊 Dashboard — ${info.nome}`;
+  const tag = document.getElementById('db-company-tag');
+  tag.textContent = info.emoji + ' ' + info.nome;
+  tag.className = 'db-company-tag ' + empresa;
+
+  // Check firebase
+  if (!window._fbOk) {
+    document.getElementById('setup-warn').classList.add('on');
+  } else {
+    document.getElementById('setup-warn').classList.remove('on');
+  }
+
+  show('v-dashboard');
+  document.getElementById('btn-dash').classList.add('on');
+  document.getElementById('btn-home').classList.remove('on');
+  document.getElementById('btn-survey').classList.remove('on');
+  loadDash();
+}
+
+// ── load responses from Firebase ─────────────────
+async function loadDash() {
+  if (!dashEmpresa) return;
+  document.getElementById('db-loading').style.display='block';
+  document.getElementById('db-empty').style.display='none';
+  document.getElementById('db-content').style.display='none';
+
+  try {
+    if (!window._fbOk) throw new Error('firebase_not_configured');
+    const responses = await window._getResponses(dashEmpresa);
+    cachedResponses = responses;
+    renderDashboard(responses);
+  } catch(e) {
+    document.getElementById('db-loading').style.display='none';
+    if (e.message === 'firebase_not_configured') {
+      document.getElementById('db-empty').style.display='block';
+      document.getElementById('db-empty').querySelector('h3').textContent='Firebase não configurado';
+      document.getElementById('db-empty').querySelector('p').textContent=
+        'Configure as credenciais do Firebase no topo do arquivo para ver as respostas de todos os aparelhos.';
+    } else {
+      toast('Erro ao carregar dados: '+e.message,'err');
+      document.getElementById('db-empty').style.display='block';
+    }
+  }
+}
+
+function renderDashboard(responses) {
+  document.getElementById('db-loading').style.display='none';
+  const n = responses.length;
+  document.getElementById('db-rc').textContent = `${n} resposta${n!==1?'s':''} registrada${n!==1?'s':''}`;
+
+  if (n === 0) {
+    document.getElementById('db-empty').style.display='block';
+    document.getElementById('db-content').style.display='none';
+    return;
+  }
+  document.getElementById('db-empty').style.display='none';
+  document.getElementById('db-content').style.display='block';
+
+  const {catAvg,qs,hd,overall} = calcStats(responses);
+  renderMetrics(catAvg,overall);
+  renderBar(catAvg);
+  renderRanking(catAvg);
+  renderLine(responses);
+  renderDonut(responses);
+  renderHeatmap(qs,hd,n);
+  renderOpen(responses);
+}
+
+// ── survey logic ──────────────────────────────────
+function sel(btn,val,qid) {
+  document.querySelectorAll(`#r-${qid} .sb`).forEach(b=>b.className='sb');
+  btn.classList.add('s'+val);
+  answers[qid]=val;
+  updateProg();
+}
+function updateProg() {
+  const done=Object.keys(answers).length;
+  const pct=Math.round((done/18)*100);
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-txt').textContent=done+' de 18';
+}
+
+async function submitSurvey() {
+  const done=Object.keys(answers).length;
+  if(done<18){
+    toast(`Responda todas as 18 perguntas (${done}/18 feitas)`,'err');
+    const first=['q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18']
+      .find(id=>!answers[id]);
+    if(first) document.getElementById('r-'+first).scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=true;btn.textContent='⏳ Salvando...';
+
+  const rec = {
+    empresa:    currentEmpresa,
+    ts_iso:     new Date().toISOString(),
+    answers:    {...answers},
+    open1:      document.getElementById('open1').value.trim(),
+    open2:      document.getElementById('open2').value.trim(),
+    open3:      document.getElementById('open3').value.trim(),
+  };
+
+  try {
+    await window._saveResponse(rec);
+    markVoted(currentEmpresa);
+    document.getElementById('sv-form').style.display='none';
+    document.getElementById('success-sc').classList.add('on');
+    answers={};
+  } catch(e) {
+    if (e.message==='firebase_not_configured') {
+      toast('Firebase não configurado — resposta não salva na nuvem','err');
+    } else {
+      toast('Erro ao salvar resposta. Tente novamente.','err');
+    }
+    btn.disabled=false;btn.textContent='✅ Enviar Pesquisa';
+  }
+}
+
+// ── stats ─────────────────────────────────────────
+function classify(s){
+  if(s>=4.5) return{cls:'excellent',label:'Excelente'};
+  if(s>=4.0) return{cls:'good',label:'Bom'};
+  if(s>=3.0) return{cls:'attention',label:'Atenção'};
+  return{cls:'critical',label:'Crítico'};
+}
+function calcStats(responses){
+  const cs={},qs={},hd={};
+  CATS.forEach(c=>{cs[c.key]={sum:0,cnt:0};});
+  QUESTIONS.forEach(q=>{qs[q.id]={sum:0,cnt:0};hd[q.id]={1:0,2:0,3:0,4:0,5:0};});
+  let ts=0,tc=0;
+  responses.forEach(r=>{
+    QUESTIONS.forEach(q=>{
+      const v=r.answers?.[q.id];
+      if(v){qs[q.id].sum+=v;qs[q.id].cnt++;cs[q.cat].sum+=v;cs[q.cat].cnt++;hd[q.id][v]++;ts+=v;tc++;}
+    });
+  });
+  const catAvg={};
+  CATS.forEach(c=>{catAvg[c.key]=cs[c.key].cnt?cs[c.key].sum/cs[c.key].cnt:0;});
+  return{catAvg,qs,hd,overall:tc?ts/tc:0};
+}
+function bc(s){return s>=4.5?'#2E7D5E':s>=4.0?'#3AA76D':s>=3.0?'#E8A020':'#C0392B';}
+function heatCol(pct){
+  if(pct>=70)return'#2E7D5E';if(pct>=50)return'#4aad82';
+  if(pct>=30)return'#E8A020';if(pct>=15)return'#e07a20';
+  return'#C0392B';
+}
+
+// ── render helpers ────────────────────────────────
+function renderMetrics(catAvg,overall){
+  const cl=classify(overall);
+  let h=`<div class="mc ${cl.cls}"><div class="ml">Índice Geral</div><div class="mv ${cl.cls}">${overall.toFixed(2)}</div><span class="mb_ ${cl.cls}">${cl.label}</span></div>`;
+  CATS.forEach(c=>{
+    const s=catAvg[c.key],cl2=classify(s);
+    h+=`<div class="mc ${cl2.cls}"><div class="ml">${c.label}</div><div class="mv ${cl2.cls}">${s.toFixed(2)}</div><span class="mb_ ${cl2.cls}">${cl2.label}</span></div>`;
+  });
+  document.getElementById('metrics-grid').innerHTML=h;
+}
+function renderBar(catAvg){
+  const ctx=document.getElementById('barChart').getContext('2d');
+  if(charts.bar)charts.bar.destroy();
+  charts.bar=new Chart(ctx,{type:'bar',data:{
+    labels:CATS.map(c=>c.label),
+    datasets:[{label:'Índice',data:CATS.map(c=>+catAvg[c.key].toFixed(2)),
+      backgroundColor:CATS.map(c=>bc(catAvg[c.key])),borderRadius:6,borderSkipped:false}]
+  },options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{min:0,max:5,ticks:{stepSize:1},grid:{color:'#E8ECF2'}},x:{grid:{display:false}}}}});
+}
+function renderRanking(catAvg){
+  const sorted=[...CATS].sort((a,b)=>catAvg[b.key]-catAvg[a.key]);
+  const medals=['🥇','🥈','🥉'];
+  document.getElementById('ranking-list').innerHTML=sorted.map((c,i)=>{
+    const s=catAvg[c.key],color=bc(s);
+    return`<div class="ri"><div class="rp">${i<3?medals[i]:i+1}</div>
+      <div class="rn">${c.label}</div>
+      <div class="rb_"><div style="width:${(s/5)*100}%;background:${color}"></div></div>
+      <div class="rs_" style="color:${color}">${s.toFixed(2)}</div></div>`;
+  }).join('');
+}
+function renderLine(responses){
+  const ctx=document.getElementById('lineChart').getContext('2d');
+  if(charts.line)charts.line.destroy();
+  const byDay={};
+  responses.forEach(r=>{
+    const day=(r.ts_iso||r.ts||'').split('T')[0]||'?';
+    if(!byDay[day])byDay[day]=[];
+    let s=0,c=0;
+    QUESTIONS.forEach(q=>{const v=r.answers?.[q.id];if(v){s+=v;c++;}});
+    if(c)byDay[day].push(s/c);
+  });
+  const labels=Object.keys(byDay).sort();
+  const data=labels.map(d=>{const a=byDay[d];return+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2);});
+  charts.line=new Chart(ctx,{type:'line',data:{
+    labels:labels.map(d=>{const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}`:d;}),
+    datasets:[{label:'Índice',data,borderColor:'#2557A7',backgroundColor:'rgba(37,87,167,.08)',
+      tension:.4,fill:true,pointBackgroundColor:'#2557A7',pointRadius:4}]
+  },options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{min:1,max:5,grid:{color:'#E8ECF2'}},x:{grid:{display:false}}}}});
+}
+function renderDonut(responses){
+  const ctx=document.getElementById('doughnutChart').getContext('2d');
+  if(charts.donut)charts.donut.destroy();
+  const cnt={1:0,2:0,3:0,4:0,5:0};
+  responses.forEach(r=>{QUESTIONS.forEach(q=>{const v=r.answers?.[q.id];if(v)cnt[v]++;});});
+  charts.donut=new Chart(ctx,{type:'doughnut',data:{
+    labels:['1 Muito Insatisfeito','2 Insatisfeito','3 Neutro','4 Satisfeito','5 Muito Satisfeito'],
+    datasets:[{data:[cnt[1],cnt[2],cnt[3],cnt[4],cnt[5]],
+      backgroundColor:['#C0392B','#E8A020','#7B6DC8','#3AA76D','#2557A7'],borderWidth:0,hoverOffset:4}]
+  },options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:10.5},padding:9}}},cutout:'65%'}});
+}
+function renderHeatmap(qs,hd,total){
+  document.getElementById('heatmap-grid').innerHTML=QUESTIONS.map(q=>{
+    let row=`<div class="hm-row"><div class="hm-label" title="${q.txt}">${q.txt}</div>`;
+    for(let v=1;v<=5;v++){
+      const cnt=hd[q.id][v]||0,pct=total?Math.round((cnt/total)*100):0;
+      row+=`<div class="hm-cell" style="background:${heatCol(pct)};opacity:${.25+pct/100*.75}" title="${cnt} resp. (${pct}%)">${cnt}</div>`;
+    }
+    return row+'</div>';
+  }).join('');
+}
+function renderOpen(responses){
+  const L={open1:[],open2:[],open3:[]};
+  responses.forEach(r=>{if(r.open1)L.open1.push(r.open1);if(r.open2)L.open2.push(r.open2);if(r.open3)L.open3.push(r.open3);});
+  document.getElementById('open-badge').textContent=(L.open1.length+L.open2.length+L.open3.length)+' respostas';
+  ['open1','open2','open3'].forEach((k,i)=>{
+    const el=document.getElementById('oa'+(i+1));
+    el.innerHTML=L[k].length
+      ?L[k].map(t=>`<div class="oa-item">${esc(t)}</div>`).join('')
+      :'<div style="font-size:12px;color:var(--g400);font-style:italic;padding:6px">Nenhuma resposta.</div>';
+  });
+}
+
+// ── AI report ─────────────────────────────────────
+function openAI(){
+  if(!cachedResponses.length){toast('Nenhuma resposta para analisar','err');return;}
+  document.getElementById('ai-ov').classList.add('on');
+  document.getElementById('ai-ld').style.display='flex';
+  document.getElementById('ai-ct').style.display='none';
+
+  const {catAvg,overall}=calcStats(cachedResponses);
+  const empresa=CFG.LABELS[dashEmpresa]?.nome||dashEmpresa;
+  const abertas=cachedResponses.map(r=>({a:r.open1,b:r.open2,c:r.open3})).filter(o=>o.a||o.b||o.c).slice(0,20);
+
+  fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:`
+Você é especialista em clima organizacional. Analise os dados da empresa "${empresa}" e retorne APENAS JSON válido sem markdown:
+
+${JSON.stringify({total:cachedResponses.length,geral:overall.toFixed(2),cats:CATS.map(c=>({nome:c.label,idx:catAvg[c.key].toFixed(2),cls:classify(catAvg[c.key]).label})),abertas})}
+
+JSON: {"resumo":"2-3 parágrafos","fortes":["..."],"melhoria":["..."],"riscos":["..."],"recs":["..."],"plano":[{"acao":"","cat":"","prio":"Alta|Média|Baixa","prazo":"","impacto":""}],"nr01":"..."}
+`}]})
+  }).then(r=>r.json()).then(d=>{
+    const txt=d.content.map(i=>i.text||'').join('');
+    const obj=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    renderAI(obj,cachedResponses.length,overall);
+  }).catch(()=>{
+    document.getElementById('ai-ld').style.display='none';
+    document.getElementById('ai-ct').style.display='block';
+    document.getElementById('ai-ct').innerHTML='<div style="text-align:center;padding:28px;color:var(--red)"><div style="font-size:30px;margin-bottom:8px">⚠️</div><p>Não foi possível gerar o relatório.</p></div>';
+  });
+}
+function renderAI(r,n,overall){
+  document.getElementById('ai-ld').style.display='none';
+  const el=document.getElementById('ai-ct');el.style.display='block';
+  const cl=classify(overall);
+  const planRows=(r.plano||[]).map(p=>{
+    const pc=(p.prio||'').toLowerCase().replace(/[éê]/g,'e').replace(/[í]/g,'i');
+    return`<tr><td>${p.acao}</td><td>${p.cat}</td><td><span class="pb ${pc==='alta'?'pa':pc==='media'||pc==='média'?'pm':'pb_'}">${p.prio}</span></td><td>${p.prazo}</td><td>${p.impacto}</td></tr>`;
+  }).join('');
+  el.innerHTML=`
+  <div style="background:var(--blue-l);border-radius:var(--rs);padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center">
+    <div style="font-size:24px">${cl.cls==='excellent'?'🟢':cl.cls==='good'?'🟡':cl.cls==='attention'?'🟠':'🔴'}</div>
+    <div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--blue-m)">Índice Geral — ${CFG.LABELS[dashEmpresa]?.nome}</div>
+      <div style="font-size:25px;font-weight:800;color:var(--blue)">${overall.toFixed(2)} <span style="font-size:12px;font-weight:500;color:var(--g600)">/ 5,00 — ${cl.label}</span></div>
+      <div style="font-size:11px;color:var(--g600)">${n} respostas analisadas</div>
+    </div>
+  </div>
+  <div class="ai-sec"><div class="ai-sec-t">📋 Resumo Executivo</div><div class="ai-c"><p>${(r.resumo||'').replace(/\n/g,'</p><p>')}</p></div></div>
+  <div class="ai-sec"><div class="ai-sec-t">✅ Pontos Fortes</div><div class="ai-c"><ul>${(r.fortes||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-sec"><div class="ai-sec-t">⚠️ Pontos de Melhoria</div><div class="ai-c"><ul>${(r.melhoria||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-sec"><div class="ai-sec-t">🚨 Riscos</div><div class="ai-c"><ul>${(r.riscos||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  <div class="ai-sec"><div class="ai-sec-t">💡 Recomendações</div><div class="ai-c"><ul>${(r.recs||[]).map(p=>`<li>${p}</li>`).join('')}</ul></div></div>
+  ${planRows?`<div class="ai-sec"><div class="ai-sec-t">🗓️ Plano de Ação</div><div style="overflow-x:auto"><table class="at"><thead><tr><th>Ação</th><th>Categoria</th><th>Prioridade</th><th>Prazo</th><th>Impacto</th></tr></thead><tbody>${planRows}</tbody></table></div></div>`:''}
+  ${r.nr01?`<div class="ai-sec"><div class="ai-sec-t">📜 NR-01 — Fatores Psicossociais</div><div class="ai-c"><p>${r.nr01}</p></div></div>`:''}
+  <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:7px">
+    <button class="btn-o" onclick="exportPDF()">📄 PDF</button>
+    <button class="btn-p" onclick="closeAI()">Fechar</button>
+  </div>`;
+}
+function closeAI(){document.getElementById('ai-ov').classList.remove('on');}
+
+// ── export ────────────────────────────────────────
+function exportExcel(){
+  if(!cachedResponses.length){toast('Nenhuma resposta','err');return;}
+  const {catAvg,overall}=calcStats(cachedResponses);
+  const empresa=CFG.LABELS[dashEmpresa]?.nome||dashEmpresa;
+  const wb=XLSX.utils.book_new();
+  const s1=[['Relatório de Clima — '+empresa],['Gerado em',new Date().toLocaleString('pt-BR')],['Total',cachedResponses.length],[],
+    ['Categoria','Índice','Classificação'],['Índice Geral',+overall.toFixed(2),classify(overall).label],
+    ...CATS.map(c=>[c.label,+catAvg[c.key].toFixed(2),classify(catAvg[c.key]).label])];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(s1),'Resumo');
+  const headers=['Data/Hora',...QUESTIONS.map(q=>q.txt),'Faz Bem','Melhorar','Sugestões'];
+  const rows=cachedResponses.map(r=>[
+    new Date(r.ts_iso||r.ts).toLocaleString('pt-BR'),
+    ...QUESTIONS.map(q=>r.answers?.[q.id]||''),r.open1||'',r.open2||'',r.open3||''
+  ]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([headers,...rows]),'Respostas');
+  XLSX.writeFile(wb,`clima-${dashEmpresa}-${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+function exportPDF(){
+  if(!cachedResponses.length){toast('Nenhuma resposta','err');return;}
+  const {catAvg,overall}=calcStats(cachedResponses);
+  const empresa=CFG.LABELS[dashEmpresa]?.nome||dashEmpresa;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório Clima ${empresa}</title>
+<style>body{font-family:Arial,sans-serif;padding:36px;color:#2C3447;max-width:800px;margin:0 auto}
+h1{color:#1B3A6B;font-size:18px;border-bottom:2px solid #1B3A6B;padding-bottom:7px;margin-bottom:14px}
+h2{color:#1B3A6B;font-size:13px;margin-top:18px;margin-bottom:5px}
+table{width:100%;border-collapse:collapse;margin-top:6px}th{background:#1B3A6B;color:#fff;padding:6px 10px;text-align:left;font-size:11px}
+td{padding:6px 10px;border-bottom:1px solid #E8ECF2;font-size:12px}tr:nth-child(even) td{background:#F5F7FA}
+.badge{padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.excellent{background:#E8F5EF;color:#2E7D5E}.good{background:#E8F5EF;color:#3AA76D}
+.attention{background:#FEF3DC;color:#c47d0a}.critical{background:#FDECEA;color:#C0392B}
+.info{background:#EBF0FA;padding:12px 14px;border-radius:7px;margin-bottom:16px;font-size:12px;line-height:1.6}
+blockquote{border-left:3px solid #2557A7;padding-left:8px;margin:3px 0;color:#5A6478;font-size:12px}
+</style></head><body>
+<h1>Relatório de Clima — ${empresa}</h1>
+<div class="info"><strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR')}&nbsp;&nbsp;<strong>Respostas:</strong> ${cachedResponses.length}&nbsp;&nbsp;<strong>Índice Geral:</strong> ${overall.toFixed(2)} — ${classify(overall).label}</div>
+<table><thead><tr><th>Categoria</th><th>Índice</th><th>Classificação</th></tr></thead><tbody>
+${CATS.map(c=>{const s=catAvg[c.key],cl=classify(s);return`<tr><td>${c.label}</td><td>${s.toFixed(2)}</td><td><span class="badge ${cl.cls}">${cl.label}</span></td></tr>`;}).join('')}
+</tbody></table>
+<h2>O que a empresa faz bem</h2>${cachedResponses.filter(r=>r.open1).map(r=>`<blockquote>${esc(r.open1)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<h2>O que precisa melhorar</h2>${cachedResponses.filter(r=>r.open2).map(r=>`<blockquote>${esc(r.open2)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<h2>Sugestões para a diretoria</h2>${cachedResponses.filter(r=>r.open3).map(r=>`<blockquote>${esc(r.open3)}</blockquote>`).join('')||'<p style="font-size:12px;color:#9BA8BB">Sem respostas.</p>'}
+<p style="margin-top:30px;font-size:10px;color:#9BA8BB;text-align:center">Pesquisa 100% anônima — Sinal Vida</p></body></html>`);
+  w.document.close();setTimeout(()=>w.print(),600);
+}
+
+// ── utils ─────────────────────────────────────────
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth;t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),3400);
+}
+</script>
+</body>
+</html>
