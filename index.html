@@ -5,55 +5,61 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pesquisa de Clima — Sinal Vida</title>
 
-<!-- Firebase -->
+<!-- Firebase SDK -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp }
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, enableIndexedDbPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ══════════════════════════════════════════════════
-//  🔥 CONFIGURAÇÃO FIREBASE — substitua pelos seus dados
-//  1. Acesse https://console.firebase.google.com
-//  2. Crie projeto → Web app → copie firebaseConfig
-//  3. Firestore Database → Create database (modo produção)
-//  4. Rules → altere para: allow read, write: if true;
+//  🔥 CREDENCIAIS FIREBASE — pesquisa-de-clima-da9cf
 // ══════════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyAw36UYb-c3TWHKfvES5mWUMrptN8Jn4co",
-  authDomain: "pesquisa-de-clima-da9cf.firebaseapp.com",
-  projectId: "pesquisa-de-clima-da9cf",
-  storageBucket: "pesquisa-de-clima-da9cf.firebasestorage.app",
+  apiKey:            "AIzaSyAw36UYb-c3TWHKfvES5mWUMrptN8Jn4co",
+  authDomain:        "pesquisa-de-clima-da9cf.firebaseapp.com",
+  projectId:         "pesquisa-de-clima-da9cf",
+  storageBucket:     "pesquisa-de-clima-da9cf.firebasestorage.app",
   messagingSenderId: "491886415780",
-  appId: "1:491886415780:web:6da5d441893d3c5695fb31",
-  measurementId: "G-JSXSZ1QKCQ"
+  appId:             "1:491886415780:web:6da5d441893d3c5695fb31"
 };
 // ══════════════════════════════════════════════════
 
 let db = null;
-let firebaseOk = false;
 
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
-  if (!firebaseConfig.apiKey.startsWith('COLE')) {
-    firebaseOk = true;
-    window._fbOk = true;
-  }
-} catch(e) { console.warn('Firebase não configurado:', e); }
+  window._fbOk = true;
+  console.log("✅ Firebase conectado:", firebaseConfig.projectId);
+} catch(e) {
+  console.error("❌ Firebase init error:", e);
+  window._fbOk = false;
+}
 
+// Salvar resposta com timeout de 10s
 window._saveResponse = async function(data) {
-  if (!firebaseOk) throw new Error('firebase_not_configured');
-  await addDoc(collection(db, 'respostas'), {
+  if (!db) throw new Error('firebase_not_configured');
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error('timeout')), 10000));
+  const save = addDoc(collection(db, 'respostas'), {
     ...data,
     ts: serverTimestamp()
   });
+  await Promise.race([save, timeout]);
 };
 
+// Buscar respostas com timeout de 12s
 window._getResponses = async function(empresa) {
-  if (!firebaseOk) throw new Error('firebase_not_configured');
-  const q = query(collection(db, 'respostas'), where('empresa', '==', empresa));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (!db) throw new Error('firebase_not_configured');
+  const timeout = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error('timeout_fetch')), 12000));
+  const fetch = (async () => {
+    const q = query(collection(db, 'respostas'), where('empresa', '==', empresa));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  })();
+  return Promise.race([fetch, timeout]);
 };
 </script>
 
